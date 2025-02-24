@@ -1,9 +1,9 @@
-package cmd
+package utils
 
 var (
-	maxLogSize int64 = 60 * 1024 * 1024 // 60 MB
+	MaxLogSize int64 = 60 * 1024 * 1024 // 60 MB
 	LogModule  string
-	logLevel   string
+	LogLevel   string
 	LogOutput  string
 	LogColor   = map[string]string{
 		"debug":   "\033[34m",

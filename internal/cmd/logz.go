@@ -1,10 +1,9 @@
-package extras
+package cmd
 
 import (
 	"fmt"
 	"github.com/coreos/go-systemd/v22/journal"
 	"github.com/faelmori/kbx/mods/utils"
-	lgzCmd "github.com/faelmori/logz/internal/cmd"
 	lgzUtl "github.com/faelmori/logz/internal/utils"
 	"io"
 	"os"
@@ -23,7 +22,23 @@ const (
 	FALSE  = "false"
 )
 
-func Log(logArgs ...string) error {
+type Logz interface {
+	Log(logArgs ...string) error
+	ShowLog(args ...string) ([]string, error)
+	ClearLogs(whatToClear string) error
+	AnswerLog(logArgs ...string) error
+	InfoLog(logArgs ...string) error
+	WarnLog(logArgs ...string) error
+	ErrorLog(logArgs ...string) error
+	DebugLog(logArgs ...string) error
+	SuccessLog(logArgs ...string) error
+	Panic(args ...interface{})
+	Writer(module string) io.Writer
+	AnalyzeLog(logFilePath string) error
+}
+type logzImpl struct{}
+
+func (l *logzImpl) Log(logArgs ...string) error {
 	if len(logArgs) < 2 {
 		return fmt.Errorf("invalid log arguments")
 	}
@@ -46,9 +61,9 @@ func Log(logArgs ...string) error {
 
 	lgzUtl.InitLogz(logModuleName, quietFlag)
 
-	color, exists := lgzCmd.LogColor[logType]
+	color, exists := lgzUtl.LogColor[logType]
 	if !exists {
-		color = lgzCmd.LogColor["default"]
+		color = lgzUtl.LogColor["default"]
 	}
 
 	var logMessage string
@@ -57,19 +72,19 @@ func Log(logArgs ...string) error {
 
 	if logType != ANSWER {
 		if !quietFlag {
-			logMessage = fmt.Sprintf("[%s] %s%s%s", lgzCmd.LogModule, color, message, lgzCmd.LogColor["default"])
+			logMessage = fmt.Sprintf("[%s] %s%s%s", lgzUtl.LogModule, color, message, lgzUtl.LogColor["default"])
 		}
-		loggerMessage = fmt.Sprintf("[%s] [%s] %s", lgzCmd.LogModule, logType, message)
+		loggerMessage = fmt.Sprintf("[%s] [%s] %s", lgzUtl.LogModule, logType, message)
 		willLog = true
 	} else {
 		if !quietFlag {
-			logMessage = fmt.Sprint(message) //nolint:govet
+			logMessage = fmt.Sprint(message)
 		}
-		loggerMessage = fmt.Sprintf("[%s] [%s] %s", lgzCmd.LogModule, logType, message)
+		loggerMessage = fmt.Sprintf("[%s] [%s] %s", lgzUtl.LogModule, logType, message)
 		willLog = false
 	}
 
-	switch lgzCmd.LogOutput {
+	switch lgzUtl.LogOutput {
 	case STDOUT:
 		if !quietFlag {
 			fmt.Println(logMessage)
@@ -108,16 +123,15 @@ func Log(logArgs ...string) error {
 	}
 
 	if logType == ERROR {
-		logToFileErr := lgzCmd.LogToFile(loggerMessage)
+		logToFileErr := lgzUtl.LogToFile(loggerMessage)
 		if logToFileErr != nil {
 			return logToFileErr
 		}
 		return fmt.Errorf("%s", message)
 	}
-	return lgzCmd.LogToFile(loggerMessage)
+	return lgzUtl.LogToFile(loggerMessage)
 }
-
-func ShowLog(args ...string) ([]string, error) {
+func (l *logzImpl) ShowLog(args ...string) ([]string, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("invalid number of arguments")
 	}
@@ -145,23 +159,23 @@ func ShowLog(args ...string) ([]string, error) {
 	}
 
 	if len(logFiles) == 0 {
-		_ = ErrorLog("Nenhum arquivo de log encontrado", "kbx")
+		_ = l.ErrorLog("Nenhum arquivo de log encontrado", "kbx")
 		return nil, nil
 	}
 	var logFileErr error
 	var logFileMessages []string
 	if follow, _ := lgzUtl.CheckFollowFlag(); follow {
-		return nil, lgzCmd.FollowAllLogFiles(logFiles)
+		return nil, lgzUtl.FollowAllLogFiles(logFiles)
 	} else {
 
 		if len(logFiles) == 1 {
-			logFileMessages, logFileErr = lgzCmd.PrintLogFile(logFiles[0])
+			logFileMessages, logFileErr = lgzUtl.PrintLogFile(logFiles[0])
 			if logFileErr != nil {
 				return nil, logFileErr
 			}
 		} else {
 			for _, logFile := range logFiles {
-				logFileMessages, logFileErr = lgzCmd.PrintLogFile(logFile)
+				logFileMessages, logFileErr = lgzUtl.PrintLogFile(logFile)
 				if logFileErr != nil {
 					return nil, logFileErr
 				}
@@ -170,7 +184,7 @@ func ShowLog(args ...string) ([]string, error) {
 	}
 	return logFileMessages, nil
 }
-func ClearLogs(whatToClear string) error {
+func (l *logzImpl) ClearLogs(whatToClear string) error {
 	tempDir, tempDirErr := utils.GetTempDir()
 	if tempDirErr != nil {
 		return tempDirErr
@@ -219,19 +233,19 @@ func ClearLogs(whatToClear string) error {
 		if force {
 			fmt.Println("Todos os logs removidos com sucesso")
 		} else {
-			_ = AnswerLog("Todos os logs removidos com sucesso", "kbx")
+			_ = l.AnswerLog("Todos os logs removidos com sucesso", "kbx")
 		}
 	} else {
 		if whatToClear == "kbx" {
 			fmt.Println("Log kbx removido com sucesso")
 		} else {
-			_ = AnswerLog("Log "+whatToClear+" removido com sucesso", "kbx")
+			_ = l.AnswerLog("Log "+whatToClear+" removido com sucesso", "kbx")
 		}
 	}
 
 	return nil
 }
-func AnswerLog(logArgs ...string) error {
+func (l *logzImpl) AnswerLog(logArgs ...string) error {
 	module := ""
 	if len(logArgs) > 1 {
 		module = logArgs[1]
@@ -242,9 +256,9 @@ func AnswerLog(logArgs ...string) error {
 		lgzUtl.SetLogOutput(logArgs[len(logArgs)-1])
 		quiet = fmt.Sprintf("%t", logArgs[len(logArgs)-1] == QUIET)
 	}
-	return Log(ANSWER, logArgs[0], module, quiet)
+	return l.Log(ANSWER, logArgs[0], module, quiet)
 }
-func InfoLog(logArgs ...string) error {
+func (l *logzImpl) InfoLog(logArgs ...string) error {
 	module := ""
 	if len(logArgs) > 1 {
 		module = logArgs[1]
@@ -255,9 +269,9 @@ func InfoLog(logArgs ...string) error {
 		lgzUtl.SetLogOutput(logArgs[len(logArgs)-1])
 		quiet = fmt.Sprintf("%t", logArgs[len(logArgs)-1] == QUIET)
 	}
-	return Log("info", logArgs[0], module, quiet)
+	return l.Log("info", logArgs[0], module, quiet)
 }
-func WarnLog(logArgs ...string) error {
+func (l *logzImpl) WarnLog(logArgs ...string) error {
 	module := ""
 	if len(logArgs) > 1 {
 		module = logArgs[1]
@@ -268,9 +282,9 @@ func WarnLog(logArgs ...string) error {
 		lgzUtl.SetLogOutput(logArgs[len(logArgs)-1])
 		quiet = fmt.Sprintf("%t", logArgs[len(logArgs)-1] == QUIET)
 	}
-	return Log("warn", logArgs[0], module, quiet)
+	return l.Log("warn", logArgs[0], module, quiet)
 }
-func ErrorLog(logArgs ...string) error {
+func (l *logzImpl) ErrorLog(logArgs ...string) error {
 	module := ""
 	if len(logArgs) > 1 {
 		module = logArgs[1]
@@ -281,9 +295,9 @@ func ErrorLog(logArgs ...string) error {
 		lgzUtl.SetLogOutput(logArgs[len(logArgs)-1])
 		quiet = fmt.Sprintf("%t", logArgs[len(logArgs)-1] == QUIET)
 	}
-	return Log(ERROR, logArgs[0], module, quiet)
+	return l.Log(ERROR, logArgs[0], module, quiet)
 }
-func DebugLog(logArgs ...string) error {
+func (l *logzImpl) DebugLog(logArgs ...string) error {
 	module := ""
 	if len(logArgs) > 1 {
 		module = logArgs[1]
@@ -294,9 +308,9 @@ func DebugLog(logArgs ...string) error {
 		lgzUtl.SetLogOutput(logArgs[len(logArgs)-1])
 		quiet = fmt.Sprintf("%t", logArgs[len(logArgs)-1] == QUIET)
 	}
-	return Log("debug", logArgs[0], module, quiet)
+	return l.Log("debug", logArgs[0], module, quiet)
 }
-func SuccessLog(logArgs ...string) error {
+func (l *logzImpl) SuccessLog(logArgs ...string) error {
 	module := ""
 	if len(logArgs) > 1 {
 		module = logArgs[1]
@@ -307,13 +321,13 @@ func SuccessLog(logArgs ...string) error {
 		lgzUtl.SetLogOutput(logArgs[len(logArgs)-1])
 		quiet = fmt.Sprintf("%t", logArgs[len(logArgs)-1] == QUIET)
 	}
-	return Log("success", logArgs[0], module, quiet)
+	return l.Log("success", logArgs[0], module, quiet)
 }
-func Panic(args ...interface{}) {
+func (l *logzImpl) Panic(args ...interface{}) {
 	_ = fmt.Errorf("panic: %s", fmt.Sprint(args...))
 	panic(fmt.Sprint(args...))
 }
-func Writer(module string) io.Writer {
+func (l *logzImpl) Writer(module string) io.Writer {
 	lgzUtl.SetModule(module)
 	logFilePath, logFilePathErr := lgzUtl.GetLogFileByModule()
 	if logFilePathErr != nil {
@@ -327,3 +341,20 @@ func Writer(module string) io.Writer {
 	}
 	return logFile
 }
+func (l *logzImpl) AnalyzeLog(logFilePath string) error {
+	metrics, err := lgzUtl.CollectLogMetrics(logFilePath)
+	if err != nil {
+		return err
+	}
+
+	lgzUtl.GenerateLogReport(metrics)
+	err = lgzUtl.GenerateLogChart(metrics)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Relatório de logs gerado com sucesso em: log_metrics.html")
+	return nil
+}
+
+func NewLogz() Logz { return &logzImpl{} }

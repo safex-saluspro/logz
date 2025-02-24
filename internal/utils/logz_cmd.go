@@ -1,10 +1,8 @@
-package cmd
+package utils
 
 import (
 	"bufio"
 	"fmt"
-	"github.com/faelmori/logz/internal/extras"
-	lgzUtl "github.com/faelmori/logz/internal/utils"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 	"io"
@@ -18,7 +16,7 @@ import (
 )
 
 func checkLogExists() bool {
-	logFilePath, logFilePathErr := lgzUtl.GetLogFileByModule()
+	logFilePath, logFilePathErr := GetLogFileByModule()
 	if logFilePathErr != nil {
 		return false
 	}
@@ -33,8 +31,7 @@ func checkLogExists() bool {
 
 func PrintLogFile(logFilePath string) ([]string, error) {
 	if !checkLogExists() {
-		_ = extras.ErrorLog("Arquivo de log não encontrado", "kbx")
-		return nil, nil
+		return nil, fmt.Errorf("arquivo de log não encontrado")
 	}
 	var logFileMessages = make([]string, 0)
 
@@ -45,7 +42,7 @@ func PrintLogFile(logFilePath string) ([]string, error) {
 	defer file.Close()
 
 	reader := bufio.NewReader(file)
-	lang := lgzUtl.DetectSystemLanguage()
+	lang := DetectSystemLanguage()
 	tag, err := language.Parse(lang)
 	if err != nil {
 		fmt.Println("Erro ao detectar a linguagem do sistema, usando en-US.")
@@ -100,8 +97,7 @@ func PrintLogFile(logFilePath string) ([]string, error) {
 
 func filterLogsByLevel(logFilePath string, level string) error {
 	if !checkLogExists() {
-		_ = extras.ErrorLog("Arquivo de log não encontrado", "kbx")
-		return nil
+		return fmt.Errorf("arquivo de log não encontrado")
 	}
 	file, fileErr := os.Open(logFilePath)
 	if fileErr != nil {
@@ -142,7 +138,7 @@ func FollowAllLogFiles(logFiles []string) error {
 
 	fileColors := make(map[string]string)
 	for _, logFile := range logFiles {
-		fileColors[logFile] = getRandomColor()
+		fileColors[logFile] = GetRandomColor()
 	}
 
 	for _, logFile := range logFiles {
@@ -168,8 +164,7 @@ func FollowAllLogFiles(logFiles []string) error {
 
 func followLogFileWithPrefix(logFilePath string, fileColor string) error {
 	if !checkLogExists() {
-		_ = ErrorLog("Arquivo de log não encontrado")
-		return nil
+		return fmt.Errorf("arquivo de log não encontrado")
 	}
 	file, err := os.Open(logFilePath)
 	if err != nil {
@@ -220,15 +215,14 @@ func followLogFileWithPrefix(logFilePath string, fileColor string) error {
 }
 
 func LogToFile(message string) error {
-	logFilePath, logFilePathErr := getLogFileByModule()
+	logFilePath, logFilePathErr := GetLogFileByModule()
 	if logFilePathErr != nil {
 		return logFilePathErr
 	}
 
 	file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 	if err != nil {
-		fmt.Println("Could not create file: ", logFilePath)
-		Panic("Error: creating log file: ", err)
+		return fmt.Errorf(fmt.Sprintf("Could not create file: %s", logFilePath))
 	}
 	defer func(file *os.File) {
 		_ = file.Close()
@@ -240,11 +234,20 @@ func LogToFile(message string) error {
 	}
 
 	go func() {
-		checkLogSizeErr := checkLogSize()
+		checkLogSizeErr := CheckLogSize()
 		if checkLogSizeErr != nil {
 			fmt.Println("Erro ao verificar o tamanho do log:", checkLogSizeErr)
 		}
 	}()
 
 	return nil
+}
+
+func GetLogLevel(line string) string {
+	for level := range LogLevels {
+		if strings.Contains(line, level) {
+			return level
+		}
+	}
+	return "INFO"
 }

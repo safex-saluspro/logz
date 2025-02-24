@@ -66,7 +66,7 @@ scrape_configs:
 	return nil
 }
 
-func prometheuz(route string, port int) error {
+func Prometheuz(route string, port int) error {
 	if route == "" {
 		route = "metrics"
 	}

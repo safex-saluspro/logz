@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"github.com/faelmori/kbx/mods/utils"
-	lgzCmd "github.com/faelmori/logz/internal/cmd"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/rand"
 	"io"
@@ -39,38 +38,29 @@ func GetRandomColor() string {
 	return logColors[rand.Intn(len(logColors))]
 }
 
-func GetLogLevel(line string) string {
-	for level := range lgzCmd.LogLevels {
-		if strings.Contains(line, level) {
-			return level
-		}
-	}
-	return "INFO"
-}
-
 func SetModule(module string) {
 	if module == "" {
-		if lgzCmd.LogModule == "" {
-			lgzCmd.LogModule = "logz"
+		if LogModule == "" {
+			LogModule = "logz"
 		}
 	} else {
-		lgzCmd.LogModule = module
+		LogModule = module
 	}
 }
 
 func GetLogFileByModule() (string, error) {
-	if lgzCmd.LogModule == "" {
-		lgzCmd.LogModule = "kbx"
+	if LogModule == "" {
+		LogModule = "kbx"
 	}
 	tempDir, tempDirErr := utils.GetTempDir()
 	if tempDirErr != nil {
 		return "", tempDirErr
 	}
-	_logModule := strings.ToUpper(lgzCmd.LogModule)
+	_logModule := strings.ToUpper(LogModule)
 	_logModuleEnv := fmt.Sprintf("KBX_%s_LOG_FILE", _logModule)
 	logFilePath := os.Getenv(_logModuleEnv)
 	if logFilePath == "" {
-		_logModuleFile := fmt.Sprintf("%s.log", strings.ToLower(lgzCmd.LogModule))
+		_logModuleFile := fmt.Sprintf("%s.log", strings.ToLower(LogModule))
 		logFilePath = filepath.Join(tempDir, _logModuleFile)
 	}
 	ensureFileErr := utils.EnsureFile(logFilePath, 0777, []string{})
@@ -83,35 +73,35 @@ func GetLogFileByModule() (string, error) {
 
 func SetlgzCmdLogLevel() {
 
-	if lgzCmd.LogLevel == "" {
-		lgzCmd.LogLevel = os.Getenv("KBX_LOG_LEVEL")
+	if LogLevel == "" {
+		LogLevel = os.Getenv("KBX_LOG_LEVEL")
 	}
-	if lgzCmd.LogLevel == "" {
-		lgzCmd.LogLevel = os.Getenv("log_level")
+	if LogLevel == "" {
+		LogLevel = os.Getenv("log_level")
 	}
-	if lgzCmd.LogLevel == "" {
-		lgzCmd.LogLevel = os.Getenv("LOG_LEVEL")
+	if LogLevel == "" {
+		LogLevel = os.Getenv("LOG_LEVEL")
 	}
-	if lgzCmd.LogLevel == "" {
-		lgzCmd.LogLevel = "info"
+	if LogLevel == "" {
+		LogLevel = "info"
 	}
 }
 
 func SetLogOutput(output string) {
-	logOutput = output
-	if logOutput == "" {
-		logOutput = os.Getenv("kbx_log_output")
-		if logOutput == "" {
-			logOutput = os.Getenv("KBX_LOG_OUTPUT")
+	LogOutput = output
+	if LogOutput == "" {
+		LogOutput = os.Getenv("kbx_log_output")
+		if LogOutput == "" {
+			LogOutput = os.Getenv("KBX_LOG_OUTPUT")
 		}
-		if logOutput == "" {
-			logOutput = os.Getenv("log_output")
+		if LogOutput == "" {
+			LogOutput = os.Getenv("log_output")
 		}
-		if logOutput == "" {
-			logOutput = os.Getenv("LOG_OUTPUT")
+		if LogOutput == "" {
+			LogOutput = os.Getenv("LOG_OUTPUT")
 		}
-		if logOutput == "" {
-			logOutput = "stdout"
+		if LogOutput == "" {
+			LogOutput = "stdout"
 		}
 	}
 }
@@ -123,15 +113,15 @@ func GetLogOutput(quiet bool, output string) string {
 	if output == "" {
 		return "stdout"
 	}
-	if logOutput == "" {
+	if LogOutput == "" {
 		return output
 	}
-	return logOutput
+	return LogOutput
 }
 
 func InitLogz(logModuleName string, quietFlag bool) {
 	SetModule(logModuleName)
-	lgzCmd.setLogLevel()
+	setLogLevel()
 	if quietFlag {
 		SetLogOutput("/dev/null")
 	} else {
@@ -157,7 +147,7 @@ func CheckLogSize() error {
 		maxLogSizeVar = 20 * 1024 * 1024 // 20 MB
 	}
 
-	moduleLogSizeEnv := os.Getenv(fmt.Sprintf("KBX_%s_LOG_SIZE", strings.ToUpper(lgzCmd.LogModule)))
+	moduleLogSizeEnv := os.Getenv(fmt.Sprintf("KBX_%s_LOG_SIZE", strings.ToUpper(LogModule)))
 	moduleLogSize, err := strconv.ParseInt(moduleLogSizeEnv, 10, 64)
 	if err != nil || moduleLogSize == 0 {
 		moduleLogSize = 5 * 1024 * 1024 // 5 MB
@@ -188,14 +178,14 @@ func CheckLogSize() error {
 				allLogFilesList = append(allLogFilesList, file.Name())
 			}
 		}
-		rotateAllLogFilesErr := rotateAllLogFiles(allLogFilesList)
+		rotateAllLogFilesErr := RotateAllLogFiles(allLogFilesList)
 		if rotateAllLogFilesErr != nil {
 			return rotateAllLogFilesErr
 		}
 	}
 
 	if len(filesToRotateList) > 0 {
-		rotateLogFilesErr := rotateAllLogFiles(filesToRotateList)
+		rotateLogFilesErr := RotateAllLogFiles(filesToRotateList)
 		if rotateLogFilesErr != nil {
 			return rotateLogFilesErr
 		}
@@ -206,7 +196,7 @@ func CheckLogSize() error {
 
 func RotateLogFile(logFilePath string) error {
 	archivePath := fmt.Sprintf("%s.tar.gz", logFilePath)
-	err := createTarGz(archivePath, []string{logFilePath})
+	err := CreateTarGz(archivePath, []string{logFilePath})
 	if err != nil {
 		return err
 	}
@@ -261,14 +251,14 @@ func RotateAllLogFiles(filesList []string) error {
 	var archivePath string
 	if !hasDifferentDirs {
 		archivePath = fmt.Sprintf("%s.tar.gz", filesEntries[0].Name())
-		createTarGzErr := createTarGz(archivePath, logFiles)
+		createTarGzErr := CreateTarGz(archivePath, logFiles)
 		if createTarGzErr != nil {
 			return createTarGzErr
 		}
 	} else {
 		for dir, files := range filesDirList {
 			archivePath = fmt.Sprintf("%s.tar.gz", dir)
-			createTarGzErr := createTarGz(archivePath, files)
+			createTarGzErr := CreateTarGz(archivePath, files)
 			if createTarGzErr != nil {
 				return createTarGzErr
 			}
@@ -381,7 +371,7 @@ func ArchiveOldLogs() error {
 	for _, file := range files {
 		if strings.HasSuffix(file.Name(), ".log") {
 			filePath := filepath.Join(tempDir, file.Name())
-			err := addFileToZip(zipWriter, filePath)
+			err := AddFileToZip(zipWriter, filePath)
 			if err != nil {
 				return err
 			}
@@ -580,7 +570,7 @@ func GetArchiveFlag(cmd cobra.Command, args []string) string {
 
 func CheckFollowFlag() (bool, error) {
 	if len(os.Args) < 2 {
-		return false, fmt.Errorf("não foi informado nenhum argumento para o logger %v\n", logModule)
+		return false, fmt.Errorf("não foi informado nenhum argumento para o logger %v\n", LogModule)
 	}
 	for _, arg := range os.Args[2:] {
 		if arg == "-f" || arg == "--follow" || arg == "follow" {
@@ -592,7 +582,7 @@ func CheckFollowFlag() (bool, error) {
 
 func CheckQuietFlag() (bool, error) {
 	if len(os.Args) < 2 {
-		return false, fmt.Errorf("não foi informado nenhum argumento para o logger %v\n", logModule)
+		return false, fmt.Errorf("não foi informado nenhum argumento para o logger %v\n", LogModule)
 	}
 	for _, arg := range os.Args[2:] {
 		if arg == "-q" || arg == "--quiet" || arg == "quiet" {
@@ -600,4 +590,20 @@ func CheckQuietFlag() (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func setLogLevel() {
+	LogLevel = os.Getenv("kbx_log_level")
+	if LogLevel == "" {
+		LogLevel = os.Getenv("KBX_LOG_LEVEL")
+	}
+	if LogLevel == "" {
+		LogLevel = os.Getenv("log_level")
+	}
+	if LogLevel == "" {
+		LogLevel = os.Getenv("LOG_LEVEL")
+	}
+	if LogLevel == "" {
+		LogLevel = "info"
+	}
 }

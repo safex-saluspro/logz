@@ -1,16 +1,14 @@
 package cli
 
 import (
-	lgzCmd "github.com/faelmori/logz/internal/cmd"
-	lgzUtl "github.com/faelmori/logz/internal/utils"
 	"github.com/spf13/cobra"
 )
 
-func LogzCmds() ([]*cobra.Command, error) {
+func LogzCmds() []*cobra.Command {
 	return []*cobra.Command{
 		logzDebugCmd(),
 		logzWriterCmd(),
-	}, nil
+	}
 }
 
 func logzDebugCmd() *cobra.Command {
@@ -22,7 +20,6 @@ func logzDebugCmd() *cobra.Command {
 		Short: "Log a debug message",
 		Long:  "Log a debug message",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			lgzUtl.
 
 			return nil
 		},
@@ -44,7 +41,7 @@ func logzWriterCmd() *cobra.Command {
 		Short: "Log IO writer",
 		Long:  "Log IO writer to the log module",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_ = lgzCmd
+
 			return nil
 		},
 	}

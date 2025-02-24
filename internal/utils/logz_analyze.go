@@ -1,18 +1,16 @@
-package cmd
+package utils
 
 import (
 	"bufio"
 	"fmt"
-	"github.com/faelmori/logz/internal/extras"
 	"github.com/go-echarts/go-echarts/charts"
 	"os"
 	"strings"
 )
 
-func collectLogMetrics(logFilePath string) (*LogMetrics, error) {
+func CollectLogMetrics(logFilePath string) (*LogMetrics, error) {
 	if !checkLogExists() {
-		_ = extras.ErrorLog("Arquivo de log não encontrado")
-		return nil, nil
+		return nil, fmt.Errorf("arquivo de log não encontrado")
 	}
 	file, err := os.Open(logFilePath)
 	if err != nil {
@@ -44,7 +42,7 @@ func collectLogMetrics(logFilePath string) (*LogMetrics, error) {
 	return metrics, nil
 }
 
-func generateLogReport(metrics *LogMetrics) {
+func GenerateLogReport(metrics *LogMetrics) {
 	fmt.Println("Relatório de Logs:")
 	fmt.Printf("Info: %d\n", metrics.InfoCount)
 	fmt.Printf("Warn: %d\n", metrics.WarnCount)
@@ -53,7 +51,7 @@ func generateLogReport(metrics *LogMetrics) {
 	fmt.Printf("Success: %d\n", metrics.SuccessCount)
 }
 
-func generateLogChart(metrics *LogMetrics) error {
+func GenerateLogChart(metrics *LogMetrics) error {
 	bar := charts.NewBar()
 	bar.SetGlobalOptions(charts.TitleOpts{Title: "Log Metrics"})
 
@@ -67,20 +65,4 @@ func generateLogChart(metrics *LogMetrics) error {
 	defer f.Close()
 
 	return bar.Render(f)
-}
-
-func analyzeLog(logFilePath string) error {
-	metrics, err := collectLogMetrics(logFilePath)
-	if err != nil {
-		return err
-	}
-
-	generateLogReport(metrics)
-	err = generateLogChart(metrics)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Relatório de logs gerado com sucesso em: log_metrics.html")
-	return nil
 }

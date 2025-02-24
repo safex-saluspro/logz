@@ -1,19 +1,17 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/faelmori/logz/internal/services"
+	"github.com/spf13/cobra"
+)
 
-func ConnLogzCmds() ([]*cobra.Command, error) {
-	prometheuzCmd, prometheuzCmdErr := ConnPrometheusCmd()
-	if prometheuzCmdErr != nil {
-		return nil, prometheuzCmdErr
-	}
-
+func ConnLogzCmds() []*cobra.Command {
 	return []*cobra.Command{
-		prometheuzCmd,
-	}, nil
+		ConnPrometheusCmd(),
+	}
 }
 
-func ConnPrometheusCmd() (*cobra.Command, error) {
+func ConnPrometheusCmd() *cobra.Command {
 	var route string
 	var port int
 
@@ -25,14 +23,12 @@ func ConnPrometheusCmd() (*cobra.Command, error) {
 			"Exposes metrics to Prometheus",
 		}, false),
 
-		Run: func(cmd *cobra.Command, args []string) {
-			//route, _ := cmd.Flags().GetString("route")
-			//port, _ := cmd.Flags().GetInt("port")
-			//Prometheuz(route, port)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return services.Prometheuz(route, port)
 		},
 	}
-	prometheuzCmd.Flags().StringVarP("route", "r", "", "Route to expose metrics")
-	prometheuzCmd.Flags().IntVarP(&clear, "port", "p", 0, "Port to expose metrics")
+	prometheuzCmd.Flags().StringVarP(&route, "route", "r", "", "Route to expose metrics")
+	prometheuzCmd.Flags().IntVarP(&port, "port", "p", 0, "Port to expose metrics")
 
-	return prometheuzCmd, nil
+	return prometheuzCmd
 }

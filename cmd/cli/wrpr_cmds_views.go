@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	logzCmd "github.com/faelmori/logz/internal/cmd"
 	"github.com/spf13/cobra"
 )
 
@@ -10,40 +11,39 @@ func ViewersCmds() []*cobra.Command {
 		analyzeLogzCmd(),
 		viewLogzUiCmd(),
 		showLogzCmd(),
-	}, nil
+	}
 }
 
 func showLogzCmd() *cobra.Command {
+	var nameFlagValue, sinceFlagValue, untilFlagValue string
+	var followFlagValue, colorsFlagValue bool
+	var linesFlagValue int
+
 	showCmd := &cobra.Command{
 		Use:     "show",
 		Aliases: []string{"list", "view"},
 		Short:   "Show logs",
 		Long:    "Show logs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			nameFlagValue, _ := cmd.Flags().GetString("name")
-			followFlagValue, _ := cmd.Flags().GetBool("follow")
-			linesFlagValue, _ := cmd.Flags().GetInt("lines")
-			sinceFlagValue, _ := cmd.Flags().GetString("since")
-			untilFlagValue, _ := cmd.Flags().GetString("until")
-			colorsFlagValue, _ := cmd.Flags().GetBool("colors")
 			newArgs := []string{nameFlagValue, fmt.Sprintf("%t", followFlagValue), fmt.Sprintf("%d", linesFlagValue), sinceFlagValue, untilFlagValue, fmt.Sprintf("%t", colorsFlagValue)}
 			args = append(args, newArgs...)
-			_, showLogzErr := ShowLog(args...)
+			_, showLogzErr := logzCmd.NewLogz().ShowLog(args...)
 			return showLogzErr
 		},
 	}
 
-	showCmd.Flags().StringP("name", "n", "all", "Log name")
-	showCmd.Flags().BoolP("follow", "f", false, "Follow logs")
-	showCmd.Flags().IntP("lines", "l", 10, "Number of lines to show")
-	showCmd.Flags().StringP("since", "s", "", "Show logs since a specific time")
-	showCmd.Flags().StringP("until", "u", "", "Show logs until a specific time")
-	showCmd.Flags().BoolP("colors", "c", true, "Show logs with colors")
+	showCmd.Flags().StringVarP(&nameFlagValue, "name", "n", "all", "Log name")
+	showCmd.Flags().BoolVarP(&followFlagValue, "follow", "f", false, "Follow logs")
+	showCmd.Flags().IntVarP(&linesFlagValue, "lines", "l", 10, "Number of lines to show")
+	showCmd.Flags().StringVarP(&sinceFlagValue, "since", "s", "", "Show logs since a specific time")
+	showCmd.Flags().StringVarP(&untilFlagValue, "until", "u", "", "Show logs until a specific time")
+	showCmd.Flags().BoolVarP(&colorsFlagValue, "colors", "c", true, "Show logs with colors")
 
-	return showCmd, nil
+	return showCmd
 }
 
 func analyzeLogzCmd() *cobra.Command {
+	var file string
 
 	analyzeCmd := &cobra.Command{
 		Use:     "analyze",
@@ -51,17 +51,15 @@ func analyzeLogzCmd() *cobra.Command {
 		Short:   "Analyze logs",
 		Long:    "Analyze logs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			file, _ := cmd.Flags().GetString("file")
 			if file == "" {
 				return fmt.Errorf("file flag is required")
 			}
-
-			return analyzeLog(file)
+			return logzCmd.NewLogz().AnalyzeLog(file)
 		},
 	}
-	analyzeCmd.Flags().StringP("file", "f", "", "Log file to analyze")
+	analyzeCmd.Flags().StringVarP(&file, "file", "f", "", "Log file to analyze")
 
-	return analyzeCmd, nil
+	return analyzeCmd
 }
 
 func viewLogzUiCmd() *cobra.Command {
@@ -71,10 +69,9 @@ func viewLogzUiCmd() *cobra.Command {
 		Short:   "View logs in a web interface",
 		Long:    "View logs in a web interface",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			//viewLogzUi()
 			return fmt.Errorf("in development")
 		},
 	}
 
-	return viewCmd, nil
+	return viewCmd
 }
