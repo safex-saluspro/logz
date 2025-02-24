@@ -1,4 +1,4 @@
-package logz
+package main
 
 import "github.com/faelmori/logz/cmd"
 import "github.com/faelmori/logz/logger"

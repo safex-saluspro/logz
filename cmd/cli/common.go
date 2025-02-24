@@ -1,30 +1,28 @@
 package cli
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
-	. "github.com/faelmori/kbx/mods/ui/wrappers"
 	"os"
 	"strings"
 )
 
-var (
-	outputType   string
-	outputTarget string
-)
-
-func RunWithLoader(task func(chan tea.Msg) error) error {
-	messages := make(chan tea.Msg)
-
-	go func() {
-		defer close(messages)
-		if err := task(messages); err != nil {
-			messages <- KbdzLoaderMsg{Message: "Error: " + err.Error()}
-		}
-		messages <- KbdzLoaderCloseMsg{}
-	}()
-
-	return StartLoader(messages)
-}
+//var (
+//	outputType   string
+//	outputTarget string
+//)
+//
+//func RunWithLoader(task func(chan tea.Msg) error) error {
+//	messages := make(chan tea.Msg)
+//
+//	go func() {
+//		defer close(messages)
+//		if err := task(messages); err != nil {
+//			messages <- KbdzLoaderMsg{Message: "Error: " + err.Error()}
+//		}
+//		messages <- KbdzLoaderCloseMsg{}
+//	}()
+//
+//	return StartLoader(messages)
+//}
 
 func GetDescriptions(descriptionArg []string, hideBanner bool) map[string]string {
 	var description, banner string
@@ -36,11 +34,12 @@ func GetDescriptions(descriptionArg []string, hideBanner bool) map[string]string
 	}
 
 	if !hideBanner {
-		banner = ` ____       ____  ____                 
- / ___|     |  _ \| __ )  __ _ ___  ___ 
-| |  _ _____| | | |  _ \ / _| / __|/ _ \
-| |_| |_____| |_| | |_) | (_| \__ \  __/
- \____|     |____/|____/ \__,_|___/\___|
+		banner = ` _                    
+ | |    ___   __ _ ____
+ | |   / _ \ / _\ |_  /
+ | |__| (_) | (_| |/ / 
+ |_____\___/ \__, /___|
+             |___/     
 `
 	} else {
 		banner = ""
