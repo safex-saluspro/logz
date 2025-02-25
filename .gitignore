@@ -1,0 +1,10 @@
+.idea/.gitignore
+.idea/.name
+.idea/glogz.iml
+.idea/logz.iml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+go.sum
+logz
+logz.iml
