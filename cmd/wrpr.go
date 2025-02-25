@@ -9,50 +9,30 @@ import (
 
 type Logz struct{}
 
-func RegX() *Logz {
-	return &Logz{}
-}
-
 func (m *Logz) Alias() string {
 	return "logs"
 }
-
 func (m *Logz) ShortDescription() string {
-	return "Logger and logs manager"
+	return "LoggerLogz and logs manager"
 }
-
 func (m *Logz) LongDescription() string {
-	return "Logger and logs manager module. It allows to log messages and manage logs easily."
+	return "The \"logz\" command-line interface (CLI) is an intuitive and user-friendly logger and log management module designed for developers. Integrated with Prometheus for monitoring, \"logz\" ensures comprehensive log management and is compatible with other plugins and the Go programming language making it a versatile tool for maintaining system health and performance."
 }
-
 func (m *Logz) Usage() string {
 	return "logz [command] [args]"
 }
-
 func (m *Logz) Examples() []string {
-	return []string{"logz show all", "kbx lg error 'error message'"}
+	return []string{"logz show all", "lg error 'error message'"}
 }
-
 func (m *Logz) Active() bool {
 	return true
 }
-
 func (m *Logz) Module() string {
 	return "logz"
 }
-
 func (m *Logz) Execute() error {
 	return m.Command().Execute()
 }
-
-func (m *Logz) concatenateExamples() string {
-	examples := ""
-	for _, example := range m.Examples() {
-		examples += string(example) + "\n  "
-	}
-	return examples
-}
-
 func (m *Logz) Command() *cobra.Command {
 	var logType, message, name, show, clearLogs, archive string
 	var filter []string
@@ -60,15 +40,12 @@ func (m *Logz) Command() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:         m.Module(),
-		Aliases:     []string{m.Alias(), "log", "lg", "l"},
-		Example:     m.concatenateExamples(),
 		Annotations: cli.GetDescriptions([]string{m.LongDescription(), m.ShortDescription()}, false),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return logzCmd.NewLogz().Log([]string{logType, message, name, strconv.FormatBool(quiet), show, strconv.FormatBool(follow), clearLogs, archive}...)
 		},
 	}
 
-	// Define as flags do comando diretamente
 	cmd.Flags().StringVarP(&logType, "type", "t", "", "Tipo de log")
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Mensagem de log")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Nome do módulo de log")
@@ -82,5 +59,22 @@ func (m *Logz) Command() *cobra.Command {
 	cmd.AddCommand(cli.LogzCmds()...)
 	cmd.AddCommand(cli.ViewersCmds()...)
 
+	setUsageDefinition(cmd)
+
+	for _, c := range cmd.Commands() {
+		setUsageDefinition(c)
+	}
+
 	return cmd
+}
+func (m *Logz) concatenateExamples() string {
+	examples := ""
+	for _, example := range m.Examples() {
+		examples += string(example) + "\n  "
+	}
+	return examples
+}
+
+func RegX() *Logz {
+	return &Logz{}
 }

@@ -16,13 +16,9 @@ func ConnPrometheusCmd() *cobra.Command {
 	var port int
 
 	prometheuzCmd := &cobra.Command{
-		Use:     "prometheuz",
-		Aliases: []string{"prometheus", "prom", "metrics"},
-		Annotations: GetDescriptions([]string{
-			"Exposes metrics to Prometheus",
-			"Exposes metrics to Prometheus",
-		}, false),
-
+		Use:         "prometheuz",
+		Aliases:     []string{"prometheus", "prom", "metrics"},
+		Annotations: GetDescriptions([]string{"Exposes metrics to Prometheus", "Exposes metrics to Prometheus"}, false),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return services.Prometheuz(route, port)
 		},

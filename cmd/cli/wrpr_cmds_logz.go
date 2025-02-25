@@ -16,11 +16,10 @@ func logzDebugCmd() *cobra.Command {
 	var quiet bool
 
 	cmd := &cobra.Command{
-		Use:   "debug",
-		Short: "Log a debug message",
-		Long:  "Log a debug message",
+		Use:         "debug",
+		Aliases:     []string{"dbg"},
+		Annotations: GetDescriptions([]string{"Logs a debug message", "Logs a debug message"}, false),
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			return nil
 		},
 	}
@@ -37,11 +36,10 @@ func logzWriterCmd() *cobra.Command {
 	var quiet bool
 
 	cmd := &cobra.Command{
-		Use:   "writer",
-		Short: "Log IO writer",
-		Long:  "Log IO writer to the log module",
+		Use:         "writer",
+		Aliases:     []string{"wrt"},
+		Annotations: GetDescriptions([]string{"Logs a writer message", "Logs a writer message"}, false),
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			return nil
 		},
 	}

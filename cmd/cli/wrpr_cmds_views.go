@@ -20,10 +20,9 @@ func showLogzCmd() *cobra.Command {
 	var linesFlagValue int
 
 	showCmd := &cobra.Command{
-		Use:     "show",
-		Aliases: []string{"list", "view"},
-		Short:   "Show logs",
-		Long:    "Show logs",
+		Use:         "show",
+		Aliases:     []string{"list", "view"},
+		Annotations: GetDescriptions([]string{"Show logs", "Show logs"}, false),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newArgs := []string{nameFlagValue, fmt.Sprintf("%t", followFlagValue), fmt.Sprintf("%d", linesFlagValue), sinceFlagValue, untilFlagValue, fmt.Sprintf("%t", colorsFlagValue)}
 			args = append(args, newArgs...)
@@ -46,10 +45,9 @@ func analyzeLogzCmd() *cobra.Command {
 	var file string
 
 	analyzeCmd := &cobra.Command{
-		Use:     "analyze",
-		Aliases: []string{"report"},
-		Short:   "Analyze logs",
-		Long:    "Analyze logs",
+		Use:         "analyze",
+		Aliases:     []string{"report"},
+		Annotations: GetDescriptions([]string{"Analyze logs", "Analyze logs"}, false),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if file == "" {
 				return fmt.Errorf("file flag is required")
@@ -64,10 +62,9 @@ func analyzeLogzCmd() *cobra.Command {
 
 func viewLogzUiCmd() *cobra.Command {
 	viewCmd := &cobra.Command{
-		Use:     "ui",
-		Aliases: []string{"web", "interface"},
-		Short:   "View logs in a web interface",
-		Long:    "View logs in a web interface",
+		Use:         "ui",
+		Aliases:     []string{"web", "interface"},
+		Annotations: GetDescriptions([]string{"View logs in a web interface", "View logs in a web interface"}, false),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("in development")
 		},
