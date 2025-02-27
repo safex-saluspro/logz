@@ -4,70 +4,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/pebbe/zmq4"
 )
 
-type LoggerLogz struct {
-	level    LogLevel
-	output   *os.File
-	metadata map[string]interface{}
+type LogFormat string
+
+const (
+	JSONFormat LogFormat = "json"
+	TextFormat LogFormat = "text"
+)
+
+type Logger struct {
+	level          LogLevel
+	output         *os.File
+	metadata       map[string]interface{}
+	format         LogFormat
+	externalURL    string
+	zmqSocket      *zmq4.Socket
+	discordWebhook string
 }
 
-// SetMetadata permite adicionar metadados globais no logger
-func (l *LoggerLogz) SetMetadata(key string, value interface{}) {
-	l.metadata[key] = value
-}
-
-// Log escreve uma entrada de log formatada
-func (l *LoggerLogz) Log(level LogLevel, msg string, ctx map[string]interface{}) {
-	if !l.shouldLog(level) {
-		return
-	}
-	timestamp := time.Now().UTC()
-	caller := getCallerInfo(3)
-
-	entry := LogRegistry{
-		Timestamp: timestamp,
-		Level:     level,
-		Message:   msg,
-		Caller:    caller,
-		Context:   mergeContext(l.metadata, ctx),
-	}
-	l.writeLog(entry)
-}
-
-// Métodos de conveniência
-func (l *LoggerLogz) Debug(msg string, ctx map[string]interface{}) { l.Log(DEBUG, msg, ctx) }
-func (l *LoggerLogz) Info(msg string, ctx map[string]interface{})  { l.Log(INFO, msg, ctx) }
-func (l *LoggerLogz) Warn(msg string, ctx map[string]interface{})  { l.Log(WARN, msg, ctx) }
-func (l *LoggerLogz) Error(msg string, ctx map[string]interface{}) { l.Log(ERROR, msg, ctx) }
-func (l *LoggerLogz) Fatal(msg string, ctx map[string]interface{}) {
-	l.Log(FATAL, msg, ctx)
-	os.Exit(1)
-}
-
-// shouldLog verifica se o log deve ser registrado
-func (l *LoggerLogz) shouldLog(level LogLevel) bool {
-	logLevels := map[LogLevel]int{DEBUG: 1, INFO: 2, WARN: 3, ERROR: 4, FATAL: 5}
-	return logLevels[level] >= logLevels[l.level]
-}
-func (l *LoggerLogz) writeLog(entry LogRegistry) {
-	data, err := json.Marshal(entry)
-	if err != nil {
-		log.Printf("Erro ao serializar log: %v", err)
-		return
-	}
-	_, err = fmt.Fprintln(l.output, string(data))
-	if err != nil {
-		return
-	}
-}
-
-// NewLogger cria uma nova instância do LoggerLogz
-func NewLogger(level LogLevel, outputPath string) *LoggerLogz {
+// NewLogger cria uma nova instância do Logger
+func NewLogger(level LogLevel, format LogFormat, outputPath, externalURL, zmqEndpoint, discordWebhook string) *Logger {
 	var output *os.File
 	if outputPath == "stdout" {
 		output = os.Stdout
@@ -78,10 +42,105 @@ func NewLogger(level LogLevel, outputPath string) *LoggerLogz {
 			log.Fatalf("Erro ao abrir arquivo de log: %v", err)
 		}
 	}
-	return &LoggerLogz{
-		level:    level,
-		output:   output,
-		metadata: make(map[string]interface{}),
+
+	var zmqSocket *zmq4.Socket
+	if zmqEndpoint != "" {
+		zmqSocket, _ = zmq4.NewSocket(zmq4.PUSH)
+		zmqSocket.Connect(zmqEndpoint)
+	}
+
+	return &Logger{
+		level:          level,
+		output:         output,
+		metadata:       make(map[string]interface{}),
+		format:         format,
+		externalURL:    externalURL,
+		zmqSocket:      zmqSocket,
+		discordWebhook: discordWebhook,
+	}
+}
+
+// SetMetadata permite adicionar metadados globais no logger
+func (l *Logger) SetMetadata(key string, value interface{}) {
+	l.metadata[key] = value
+}
+
+// Log escreve uma entrada de log formatada
+func (l *Logger) Log(level LogLevel, msg string, ctx map[string]interface{}) {
+	if !l.shouldLog(level) {
+		return
+	}
+	timestamp := time.Now().UTC()
+	caller := getCallerInfo(3)
+
+	entry := LogEntry{
+		Timestamp: timestamp,
+		Level:     level,
+		Message:   msg,
+		Caller:    caller,
+		Context:   mergeContext(l.metadata, ctx),
+	}
+
+	l.writeLog(entry)
+	l.sendToExternal(entry)
+	l.sendToDiscord(entry)
+}
+
+// Métodos de conveniência
+func (l *Logger) Debug(msg string, ctx map[string]interface{}) { l.Log(DEBUG, msg, ctx) }
+func (l *Logger) Info(msg string, ctx map[string]interface{})  { l.Log(INFO, msg, ctx) }
+func (l *Logger) Warn(msg string, ctx map[string]interface{})  { l.Log(WARN, msg, ctx) }
+func (l *Logger) Error(msg string, ctx map[string]interface{}) { l.Log(ERROR, msg, ctx) }
+func (l *Logger) Fatal(msg string, ctx map[string]interface{}) {
+	l.Log(FATAL, msg, ctx)
+	os.Exit(1)
+}
+
+func (l *Logger) shouldLog(level LogLevel) bool {
+	logLevels := map[LogLevel]int{DEBUG: 1, INFO: 2, WARN: 3, ERROR: 4, FATAL: 5}
+	return logLevels[level] >= logLevels[l.level]
+}
+
+func (l *Logger) writeLog(entry LogEntry) {
+	var output string
+	if l.format == JSONFormat {
+		data, err := json.Marshal(entry)
+		if err != nil {
+			log.Printf("Erro ao serializar log: %v", err)
+			return
+		}
+		output = string(data)
+	} else {
+		output = fmt.Sprintf("[%s] %s - %s (%s)\n", entry.Timestamp.Format(time.RFC3339), entry.Level, entry.Message, entry.Caller)
+	}
+	fmt.Fprintln(l.output, output)
+}
+
+func (l *Logger) sendToExternal(entry LogEntry) {
+	if l.externalURL != "" {
+		data, _ := json.Marshal(entry)
+		_, err := http.Post(l.externalURL, "application/json", strings.NewReader(string(data)))
+		if err != nil {
+			log.Printf("Erro ao enviar log para %s: %v", l.externalURL, err)
+		}
+	}
+
+	if l.zmqSocket != nil {
+		data, _ := json.Marshal(entry)
+		l.zmqSocket.Send(string(data), 0)
+	}
+}
+
+func (l *Logger) sendToDiscord(entry LogEntry) {
+	if l.discordWebhook == "" {
+		return
+	}
+	message := fmt.Sprintf("**[%s] %s**\n%s", entry.Level, entry.Timestamp.Format(time.RFC3339), entry.Message)
+	payload := map[string]string{"content": message}
+	jsonPayload, _ := json.Marshal(payload)
+	_, err := http.Post(l.discordWebhook, "application/json", strings.NewReader(string(jsonPayload)))
+	if err != nil {
+		log.Printf("Erro ao enviar log para Discord: %v", err)
 	}
 }
 
@@ -93,6 +152,7 @@ func getCallerInfo(skip int) string {
 	funcName := runtime.FuncForPC(pc).Name()
 	return fmt.Sprintf("%s:%d %s", trimFilePath(file), line, funcName)
 }
+
 func trimFilePath(filePath string) string {
 	parts := strings.Split(filePath, "/")
 	if len(parts) > 2 {
@@ -100,6 +160,7 @@ func trimFilePath(filePath string) string {
 	}
 	return filePath
 }
+
 func mergeContext(global, local map[string]interface{}) map[string]interface{} {
 	merged := make(map[string]interface{})
 	for k, v := range global {

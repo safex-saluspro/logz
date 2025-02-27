@@ -4,7 +4,6 @@ go 1.24
 
 require (
 	github.com/coreos/go-systemd/v22 v22.5.0
-	github.com/faelmori/kbx v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.18.0
 	github.com/go-echarts/go-echarts v1.0.0
 	github.com/olekukonko/tablewriter v0.0.5
@@ -32,9 +31,4 @@ require (
 	golang.org/x/sys v0.30.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-)
-
-replace (
-	github.com/faelmori/gokubexfs => ../gokubexfs
-	github.com/faelmori/kbx => ../kubex/_lib/kbx
 )

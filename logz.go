@@ -9,6 +9,6 @@ func main() {
 	}
 }
 
-func Logger(prefix *string) logger.LoggerInterface {
+func GetLogger(prefix *string) logger.LoggerInterface {
 	return logger.NewLogger(prefix)
 }
