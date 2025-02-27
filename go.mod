@@ -7,6 +7,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/go-echarts/go-echarts v1.0.0
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/pebbe/zmq4 v1.2.11
 	github.com/prometheus/client_golang v1.21.0
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
