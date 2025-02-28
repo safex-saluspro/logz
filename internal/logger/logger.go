@@ -2,6 +2,8 @@ package logger
 
 import (
 	"fmt"
+	"github.com/faelmori/logz/internal/services"
+	"log"
 	"os"
 )
 
@@ -52,10 +54,6 @@ func NewLogger(level LogLevel, format string, outputPath, externalURL, zmqEndpoi
 		extNotifier := NewExternalNotifier(externalURL, zmqEndpoint)
 		notifiers = append(notifiers, extNotifier)
 	}
-	if discordWebhook != "" {
-		discNotifier := NewDiscordNotifier(discordWebhook)
-		notifiers = append(notifiers, discNotifier)
-	}
 
 	return &Logger{
 		level:     level,
@@ -97,36 +95,29 @@ func (l *Logger) log(level LogLevel, msg string, ctx map[string]interface{}) {
 	if !l.shouldLog(level) {
 		return
 	}
-
-	// Mescla metadados globais com o contexto informado.
 	finalContext := mergeContext(l.metadata, ctx)
-	// Construção da entrada de log utilizando os métodos chainable.
-	entry := NewLogEntry().
-		WithLevel(level).
-		WithMessage(msg).
-		WithSeverity(logLevels[level])
+	entry := NewLogEntry().WithLevel(level).WithMessage(msg).WithSeverity(logLevels[level])
 	for k, v := range finalContext {
 		entry.AddMetadata(k, v)
 	}
 
-	// **Novidade:** Converte o contexto (map) para uma string e seta o campo Context da entrada.
-	if len(finalContext) > 0 {
-		ctxStr := ""
-		for k, v := range finalContext {
-			if ctxStr != "" {
-				ctxStr += ", "
-			}
-			ctxStr += fmt.Sprintf("%s=%v", k, v)
-		}
-		entry.WithContext(ctxStr)
+	// Escreve o log usando o writer
+	if err := l.writer.Write(entry); err != nil {
+		log.Printf("Erro ao escrever log: %v", err)
 	}
 
-	if err := l.writer.Write(entry); err != nil {
-		fmt.Println(fmt.Sprintf("Erro ao escrever log: %v", err))
-	}
+	// Notifica todos os notifiers integrados
 	for _, notifier := range l.notifiers {
 		notifier.Notify(entry)
 	}
+
+	// Integração com métricas: incrementa contadores relevantos
+	pm := services.GetPrometheusManager()
+	if pm.IsEnabled() {
+		pm.IncrementMetric("logs_total", 1)
+		pm.IncrementMetric("logs_total_"+string(level), 1)
+	}
+
 	if level == FATAL {
 		os.Exit(1)
 	}

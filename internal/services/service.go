@@ -9,68 +9,125 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
 
-var (
-	pidFile     = "service.pid"
+const (
 	defaultPort = "9999"
+	pidFile     = "logz_srv.pid"
 )
 
-// Run inicia o servidor HTTP e bloqueia até receber um sinal de término.
-func Run() error {
-	mux := http.NewServeMux()
+type Config struct {
+	Port           string
+	PidFile        string
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
+	IdleTimeout    time.Duration
+	DefaultLogPath string
+}
 
-	// Endpoints para integrações (stubs)
+func getConfig(port string) *Config {
+	if port == "" {
+		port = defaultPort
+	}
+	return &Config{
+		Port:           defaultPort,
+		PidFile:        getPidPath(),
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		DefaultLogPath: "./logs",
+	}
+}
+
+var startTime = time.Now()
+
+func getPidPath() string {
+	if envPath := os.Getenv("LOGZ_PID_PATH"); envPath != "" {
+		return envPath
+	}
+	home, homeErr := os.UserCacheDir()
+	if homeErr != nil {
+		home = "/tmp"
+	}
+	return filepath.Join(home, pidFile)
+}
+
+func validatePort(port string) error {
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return fmt.Errorf("invalid port: %s (must be between 1 and 65535)", port)
+	}
+	return nil
+}
+
+func registerHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/discord", discordHandler)
 	mux.HandleFunc("/slack", slackHandler)
 	mux.HandleFunc("/telegram", telegramHandler)
 	mux.HandleFunc("/metrics", prometheusMetricsHandler)
 	mux.HandleFunc("/grafana", grafanaHandler)
+}
 
-	port := defaultPort
-	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: mux,
+func Run(port string) error {
+	if IsRunning() {
+		return errors.New("service already running (pid file exists)")
 	}
 
-	// Canal para sinais de desligamento
+	if err := validatePort(port); err != nil {
+		return err
+	}
+
+	mux := http.NewServeMux()
+	registerHandlers(mux)
+	config := getConfig(port)
+
+	srv := &http.Server{
+		Addr:         "127.0.0.1:" + config.Port,
+		Handler:      loggingMiddleware(mux),
+		ReadTimeout:  config.ReadTimeout,
+		WriteTimeout: config.WriteTimeout,
+		IdleTimeout:  config.IdleTimeout,
+	}
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-	// Inicia o servidor em uma goroutine
 	go func() {
-		fmt.Printf("Service running on port %s\n", port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("Service encountered an error: %v\n", err)
+		log.Printf("Service running on port %s\n", port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("Service encountered an error: %v\n", err)
 		}
 	}()
 
-	// Bloqueia até receber um sinal de parada
 	<-stop
 	fmt.Println("Shutting down service gracefully...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		return fmt.Errorf("service shutdown failed: %w", err)
+		log.Printf("Service shutdown failed: %v\n", err)
+		return fmt.Errorf("shutdown process failed: %w", err)
 	}
+	log.Println("Service stopped gracefully.")
 
-	log.Println("Service stopped")
 	return nil
 }
 
-// Start lança o serviço em segundo plano (daemoniza) se não estiver rodando.
-func Start() error {
-	if _, err := os.Stat(pidFile); err == nil {
+func Start(port string) error {
+	if IsRunning() {
 		return errors.New("service already running (pid file exists)")
 	}
 
-	// Executa o mesmo binário com o argumento "service-run"
-	cmd := exec.Command(os.Args[0], "service-run")
-	// Redireciona a saída (você pode ajustar se preferir redirecionar para um arquivo)
+	if port == "" {
+		port = defaultPort
+	}
+	cmd := exec.Command(os.Args[0], "service-run", "--port", port)
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -78,86 +135,128 @@ func Start() error {
 		return fmt.Errorf("failed to start service: %w", err)
 	}
 
-	// Escreve o PID em um arquivo para permitir o "stop"
-	pid := cmd.Process.Pid
-	err := os.WriteFile(pidFile, []byte(strconv.Itoa(pid)), 0644)
+	file, err := os.OpenFile(getPidPath(), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to write pid file: %w", err)
+		return fmt.Errorf("failed to open PID file: %w", err)
 	}
-	fmt.Printf("Service started with pid %d", pid)
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return errors.New("another process is writing to the PID file")
+	}
+
+	pid := cmd.Process.Pid
+	pidData := fmt.Sprintf("%d\n%s", pid, port)
+	if _, err := file.Write([]byte(pidData)); err != nil {
+		return fmt.Errorf("failed to write PID data: %w", err)
+	}
+	fmt.Printf("Service started with pid %d\n", pid)
 	return nil
 }
 
-// Stop encerra o serviço em execução lendo o PID e enviando um SIGTERM.
 func Stop() error {
-	data, err := os.ReadFile(pidFile)
+	pid, port, pidPath, err := GetServiceInfo()
 	if err != nil {
-		return errors.New("service not running (pid file not found)")
+		return err
 	}
 
-	pid, err := strconv.Atoi(string(data))
-	if err != nil {
-		return fmt.Errorf("invalid pid file: %w", err)
+	process, processErr := os.FindProcess(pid)
+	if processErr != nil {
+		return fmt.Errorf("failed to find process: %w", processErr)
 	}
 
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return fmt.Errorf("failed to find process: %w", err)
+	if signalErr := process.Signal(syscall.SIGTERM); signalErr != nil {
+		return fmt.Errorf("failed to stop process: %w", signalErr)
 	}
 
-	if err := process.Signal(syscall.SIGTERM); err != nil {
-		return fmt.Errorf("failed to stop process: %w", err)
-	}
-
-	// Aguarda um pouco e remove o arquivo de PID
 	time.Sleep(1 * time.Second)
-	removeErr := os.Remove(pidFile)
-	if removeErr != nil {
+	if removeErr := os.Remove(pidPath); removeErr != nil {
 		return removeErr
 	}
-	log.Printf("Service with pid %d stopped", pid)
+	log.Printf("Service with pid %d and port %s stopped", pid, port)
 	return nil
 }
 
-// healthHandler retorna status OK.
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+func IsRunning() bool {
+	_, err := os.Stat(getPidPath())
+	return err == nil
 }
 
-func discordHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Discord integration endpoint"))
+func GetServiceInfo() (int, string, string, error) {
+	pidPath := getPidPath()
+
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return 0, "", "", errors.New("service not running (PID file not found)")
+	}
+
+	lines := strings.Split(string(data), "\n")
+	pid, pidErr := strconv.Atoi(lines[0])
+	if pidErr != nil {
+		return 0, "", "", fmt.Errorf("invalid PID in PID file: %w", pidErr)
+	}
+
+	port := "unknown"
+	if len(lines) > 1 {
+		port = lines[1]
+	}
+
+	return pid, port, pidPath, nil
 }
 
-func slackHandler(w http.ResponseWriter, r *http.Request) {
+func healthHandler(w http.ResponseWriter, _ *http.Request) {
+	uptime := time.Since(startTime).String()
+	response := fmt.Sprintf("OK\nUptime: %s\n", uptime)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Slack integration endpoint"))
+	_, _ = w.Write([]byte(response))
 }
 
-func telegramHandler(w http.ResponseWriter, r *http.Request) {
+func discordHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Telegram integration endpoint"))
+	_, _ = w.Write([]byte("Discord integration endpoint"))
 }
 
-func grafanaHandler(w http.ResponseWriter, r *http.Request) {
+func slackHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Grafana integration endpoint"))
+	_, _ = w.Write([]byte("Slack integration endpoint"))
 }
 
-// prometheusMetricsHandler expõe as métricas no formato Prometheus.
-func prometheusMetricsHandler(w http.ResponseWriter, r *http.Request) {
+func telegramHandler(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("Telegram integration endpoint"))
+}
+
+func grafanaHandler(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("Grafana integration endpoint"))
+}
+
+func prometheusMetricsHandler(w http.ResponseWriter, _ *http.Request) {
 	pm := GetPrometheusManager()
 	if !pm.IsEnabled() {
 		http.Error(w, "Prometheus integration is not enabled", http.StatusForbidden)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	for name, value := range pm.GetMetrics() {
-		// Cada métrica é exposta como um gauge.
-		fmt.Fprintf(w, "# HELP %s Custom metric from Logz\n", name)
-		fmt.Fprintf(w, "# TYPE %s gauge\n", name)
-		fmt.Fprintf(w, "%s %f\n", name, value)
+	metrics := pm.GetMetrics()
+	if len(metrics) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
 	}
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	for name, value := range metrics {
+		if _, err := fmt.Fprintf(w, "# HELP %s Custom metric from Logz\n# TYPE %s gauge\n%s %f\n", name, name, name, value); err != nil {
+			fmt.Println(fmt.Sprintf("Error writing metric '%s': %v", name, err))
+		}
+	}
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Received %s request for %s from %s\n", r.Method, r.URL.Path, r.RemoteAddr)
+		next.ServeHTTP(w, r)
+	})
 }

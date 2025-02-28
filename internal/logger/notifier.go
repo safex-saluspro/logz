@@ -28,10 +28,9 @@ func NewExternalNotifier(url string, zmqEndpoint string) *ExternalNotifier {
 		var err error
 		socket, err = zmq4.NewSocket(zmq4.PUSH)
 		if err != nil {
-			fmt.Println(fmt.Sprintf("Erro ao criar socket ZMQ: %v", err))
+			fmt.Printf("Erro ao criar socket ZMQ: %v\n", err)
 		} else {
-			connErr := socket.Connect(zmqEndpoint)
-			if connErr != nil {
+			if err := socket.Connect(zmqEndpoint); err != nil {
 				return nil
 			}
 		}
@@ -45,48 +44,120 @@ func NewExternalNotifier(url string, zmqEndpoint string) *ExternalNotifier {
 // Notify envia o log via HTTP (se externalURL estiver configurada)
 // e via ZMQ (se o socket estiver ativo).
 func (n *ExternalNotifier) Notify(entry *LogEntry) {
+	// HTTP
 	if n.externalURL != "" {
 		data, _ := json.Marshal(entry)
 		_, err := http.Post(n.externalURL, "application/json", strings.NewReader(string(data)))
 		if err != nil {
-			fmt.Println(fmt.Sprintf("Erro ao enviar log para %s: %v", n.externalURL, err))
+			fmt.Printf("Erro ao enviar log para %s: %v\n", n.externalURL, err)
 		}
 	}
+	// ZMQ
 	if n.zmqSocket != nil {
 		data, _ := json.Marshal(entry)
-		_, propagateErr := n.zmqSocket.Send(string(data), 0)
-		if propagateErr != nil {
-			fmt.Println(fmt.Sprintf("Erro ao enviar log para ZMQ: %v", propagateErr))
+		if _, err := n.zmqSocket.Send(string(data), 0); err != nil {
+			fmt.Printf("Erro ao enviar log para ZMQ: %v\n", err)
 			return
 		}
 	}
 }
 
-// DiscordNotifier envia logs para um webhook do Discord.
-type DiscordNotifier struct {
-	webhook string
+// DBusNotifier envia logs para o DBus.
+type DBusNotifier struct {
+	enabled bool
+	// Aqui pode ser armazenada uma conexão DBus, se necessário.
 }
 
-// NewDiscordNotifier cria uma nova instância de DiscordNotifier.
-func NewDiscordNotifier(webhook string) *DiscordNotifier {
-	return &DiscordNotifier{
-		webhook: webhook,
+// NewDBusNotifier cria uma nova instância de DBusNotifier.
+func NewDBusNotifier() *DBusNotifier {
+	return &DBusNotifier{
+		enabled: false,
 	}
 }
 
-// Notify formata a mensagem e a envia via HTTP POST para o Discord.
-func (n *DiscordNotifier) Notify(entry *LogEntry) {
-	if n.webhook == "" {
+// Enable ativa o envio de logs via DBus.
+func (d *DBusNotifier) Enable() {
+	d.enabled = true
+	fmt.Println("DBusNotifier enabled.")
+}
+
+// Disable desativa o envio de logs via DBus.
+func (d *DBusNotifier) Disable() {
+	d.enabled = false
+	fmt.Println("DBusNotifier disabled.")
+}
+
+// Notify envia o log via DBus, se habilitado.
+func (d *DBusNotifier) Notify(entry *LogEntry) {
+	if !d.enabled {
 		return
 	}
-	message := fmt.Sprintf("**[%s] %s**\n%s",
-		entry.Level,
-		entry.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
-		entry.Message)
-	payload := map[string]string{"content": message}
-	jsonPayload, _ := json.Marshal(payload)
-	_, err := http.Post(n.webhook, "application/json", strings.NewReader(string(jsonPayload)))
+	// Aqui, implemente a lógica de envio usando a API DBus.
+	// Por enquanto, simulamos a operação.
+	fmt.Printf("DBusNotifier: sending log [%s] via DBus\n", entry.Message)
+}
+
+// ZMQSecNotifier envia logs de forma segura via ZMQ, utilizando autenticação JWT.
+type ZMQSecNotifier struct {
+	enabled   bool
+	zmqSocket *zmq4.Socket
+	// Possivelmente, campos para armazenar chaves ou caminhos dos arquivos.
+	// Exemplo:
+	privateKeyPath string
+	certPath       string
+	configPath     string
+}
+
+// NewZMQSecNotifier cria uma nova instância de ZMQSecNotifier.
+func NewZMQSecNotifier(zmqEndpoint, privateKeyPath, certPath, configPath string) *ZMQSecNotifier {
+	socket, err := zmq4.NewSocket(zmq4.PUSH)
 	if err != nil {
-		fmt.Println(fmt.Sprintf("Erro ao enviar log para Discord: %v", err))
+		fmt.Printf("Error creating secure ZMQ socket: %v\n", err)
+		return nil
+	}
+	if err := socket.Connect(zmqEndpoint); err != nil {
+		fmt.Printf("Error connecting secure ZMQ socket: %v\n", err)
+		return nil
+	}
+	return &ZMQSecNotifier{
+		enabled:        false,
+		zmqSocket:      socket,
+		privateKeyPath: privateKeyPath,
+		certPath:       certPath,
+		configPath:     configPath,
+	}
+}
+
+// Enable ativa o ZMQSecNotifier.
+func (z *ZMQSecNotifier) Enable() {
+	z.enabled = true
+	fmt.Println("ZMQSecNotifier enabled.")
+}
+
+// Disable desativa o ZMQSecNotifier.
+func (z *ZMQSecNotifier) Disable() {
+	z.enabled = false
+	fmt.Println("ZMQSecNotifier disabled.")
+}
+
+// Notify envia o log de forma segura via ZMQ, com autenticação JWT.
+// Aqui, você pode usar funções do seu módulo gkbxsrv para gerar token JWT.
+func (z *ZMQSecNotifier) Notify(entry *LogEntry) {
+	if !z.enabled {
+		return
+	}
+	// Gerar token JWT apropriado (use as funções de autenticação do gkbxsrv, por exemplo).
+	// token := GenerateJWTToken(entry) // Implemente conforme necessário.
+	// Adicione o token à mensagem ou no cabeçalho dos dados.
+
+	data, _ := json.Marshal(entry)
+	// Para exemplo, suponha que concatenamos o token à mensagem:
+	// message := token + "|" + string(data)
+	// Simulamos a operação:
+	message := string(data) // Aqui, você incluiria a lógica de autenticação.
+
+	if _, err := z.zmqSocket.Send(message, 0); err != nil {
+		fmt.Printf("Error sending secure log via ZMQ: %v\n", err)
+		return
 	}
 }

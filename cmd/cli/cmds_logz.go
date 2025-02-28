@@ -1,8 +1,13 @@
 package cli
 
 import (
+	"fmt"
 	"github.com/faelmori/logz/internal/logger"
 	"github.com/spf13/cobra"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 // LogzCmds retorna os comandos CLI para os diferentes níveis de log.
@@ -13,6 +18,7 @@ func LogzCmds() []*cobra.Command {
 		newLogCmd("warn", []string{"wrn"}),
 		newLogCmd("error", []string{"err"}),
 		newLogCmd("fatal", []string{"ftl"}),
+		watchLogsCmd(),
 	}
 }
 
@@ -65,4 +71,30 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 	cmd.Flags().StringVarP(&msg, "msg", "M", "", "Mensagem do log")
 
 	return cmd
+}
+
+func watchLogsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "watch",
+		Aliases: []string{"w"},
+		Short:   "Watch logs in real time",
+		Run: func(cmd *cobra.Command, args []string) {
+			logFilePath := "./logz.log" // Ajuste isso conforme sua configuração
+			reader := logger.NewFileLogReader()
+			stopChan := make(chan struct{})
+			// Captura sinais para interrupção
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				<-sigChan
+				close(stopChan)
+			}()
+			fmt.Println("Watching logs (press Ctrl+C to exit):")
+			if err := reader.Tail(logFilePath, stopChan); err != nil {
+				fmt.Printf("Error watching logs: %v\n", err)
+			}
+			// Aguarda um pequeno delay para finalizar
+			time.Sleep(500 * time.Millisecond)
+		},
+	}
 }
