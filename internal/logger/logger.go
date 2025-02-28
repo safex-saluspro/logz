@@ -5,6 +5,9 @@ import (
 	"github.com/faelmori/logz/internal/services"
 	"log"
 	"os"
+	"runtime"
+	"strings"
+	"time"
 )
 
 // Mapping dos níveis de log para um valor numérico de severidade.
@@ -90,28 +93,62 @@ func (l *Logger) shouldLog(level LogLevel) bool {
 	return logLevels[level] >= logLevels[l.level]
 }
 
+// getCallerInfo captura informações do caller usando runtime.Caller.
+// O parâmetro skip indica quantos níveis pular (ajuste conforme a estrutura de chamadas).
+func getCallerInfo(skip int) string {
+	pc, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return "unknown"
+	}
+	funcName := runtime.FuncForPC(pc).Name()
+	return fmt.Sprintf("%s:%d %s", trimFilePath(file), line, funcName)
+}
+
+// trimFilePath reduz o caminho do arquivo para os dois últimos componentes.
+func trimFilePath(filePath string) string {
+	parts := strings.Split(filePath, "/")
+	if len(parts) > 2 {
+		return strings.Join(parts[len(parts)-2:], "/")
+	}
+	return filePath
+}
+
 // log cria uma entrada de log, mescla os metadados e delega a escrita e envio.
 func (l *Logger) log(level LogLevel, msg string, ctx map[string]interface{}) {
 	if !l.shouldLog(level) {
 		return
 	}
+	// Captura o timestamp e as informações do caller automaticamente.
+	timestamp := time.Now().UTC()
+	caller := getCallerInfo(3)
+
+	// Cria a entrada de log e preenche os campos necessários,
+	// incluindo Caller, que é obrigatório para rastreabilidade.
+	entry := NewLogEntry().
+		WithLevel(level).
+		WithMessage(msg).
+		WithSeverity(logLevels[level])
+	// Define os campos obrigatórios automaticamente.
+	entry.Timestamp = timestamp
+	entry.Caller = caller
+
+	// Adiciona os metadados globais e específicos (se houver).
 	finalContext := mergeContext(l.metadata, ctx)
-	entry := NewLogEntry().WithLevel(level).WithMessage(msg).WithSeverity(logLevels[level])
 	for k, v := range finalContext {
 		entry.AddMetadata(k, v)
 	}
 
-	// Escreve o log usando o writer
+	// Escreve o log utilizando o writer.
 	if err := l.writer.Write(entry); err != nil {
 		log.Printf("Erro ao escrever log: %v", err)
 	}
 
-	// Notifica todos os notifiers integrados
+	// Notifica os notifiers configurados.
 	for _, notifier := range l.notifiers {
 		notifier.Notify(entry)
 	}
 
-	// Integração com métricas: incrementa contadores relevantos
+	// Integração com métricas: atualização automática
 	pm := services.GetPrometheusManager()
 	if pm.IsEnabled() {
 		pm.IncrementMetric("logs_total", 1)

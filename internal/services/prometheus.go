@@ -4,15 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sync"
 )
 
 // RegEx válida para nomes de métricas conforme as regras do Prometheus.
-var (
-	metricNameRegex = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
-)
+var metricNameRegex = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
 
 // validateMetricName assegura que o nome da métrica esteja correto.
 func validateMetricName(name string) error {
@@ -229,4 +228,48 @@ func (pm *PrometheusManager) GetMetrics() map[string]float64 {
 		copiedMetrics[k] = metric.Value
 	}
 	return copiedMetrics
+}
+
+// setPrometheusSysConfig configura o Prometheus para coletar métricas do Logz.
+func (pm *PrometheusManager) setPrometheusSysConfig() error {
+	prometheusConfig := `
+scrape_configs:
+  - job_name: 'logz'
+	static_configs:
+	  - targets: ['localhost:2112']
+`
+	// Verifica se o arquivo de configuração do Prometheus existe.
+	ptmCheckConfigExistsCmd := exec.Command("type", "-f", "/etc/prometheus/prometheus.yml")
+	ptmCheckConfigExistsErr := ptmCheckConfigExistsCmd.Run()
+	if ptmCheckConfigExistsErr != nil {
+		// Se não existir, cria o arquivo de configuração do Prometheus e insere as configurações necessárias.
+		ptmCreateConfigCmd := exec.Command("echo", prometheusConfig, ">", "/etc/prometheus/prometheus.yml")
+		ptmCreateConfigErr := ptmCreateConfigCmd.Run()
+		if ptmCreateConfigErr != nil {
+			return ptmCreateConfigErr
+		}
+	} else {
+		// Se existir, verifica se as configurações necessárias estão presentes.
+		ptmCheckConfigCmd := exec.Command("grep", "logz", "/etc/prometheus/prometheus.yml")
+		ptmCheckConfigErr := ptmCheckConfigCmd.Run()
+		if ptmCheckConfigErr != nil {
+			// Se não estiverem, insere as configurações necessárias.
+			ptmInsertConfigCmd := exec.Command("echo", prometheusConfig, ">>", "/etc/prometheus/prometheus.yml")
+			ptmInsertConfigErr := ptmInsertConfigCmd.Run()
+			if ptmInsertConfigErr != nil {
+				return ptmInsertConfigErr
+			}
+		}
+	}
+	return nil
+}
+
+// initPrometheus inicializa o PrometheusManager e registra as métricas padrão.
+func (pm *PrometheusManager) initPrometheus() error {
+	//setPrometheuzConfigErr := setPrometheuzConfig()
+	//if setPrometheuzConfigErr != nil {
+	//	return setPrometheuzConfigErr
+	//}
+	//prometheus.MustRegister(infoCount, warnCount, errorCount, debugCount, successCount)
+	return nil
 }

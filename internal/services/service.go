@@ -1,15 +1,17 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	//"github.com/prometheus/client_golang/prometheus"
+	// github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/viper"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,116 +19,91 @@ import (
 )
 
 const (
-	defaultPort = "9999"
-	pidFile     = "logz_srv.pid"
+	defaultPort        = "9999"
+	defaultBindAddress = "0.0.0.0"
+	pidFile            = "logz_srv.pid"
+)
+
+var (
+	lSrv      *http.Server
+	startTime = time.Now()
 )
 
 type Config struct {
 	Port           string
+	BindAddress    string
+	Address        string
 	PidFile        string
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
 	IdleTimeout    time.Duration
 	DefaultLogPath string
-}
-
-func getConfig(port string) *Config {
-	if port == "" {
-		port = defaultPort
-	}
-	return &Config{
-		Port:           defaultPort,
-		PidFile:        getPidPath(),
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		DefaultLogPath: "./logs",
+	Integrations   map[string]struct {
+		enabled bool
 	}
 }
 
-var startTime = time.Now()
-
-func getPidPath() string {
-	if envPath := os.Getenv("LOGZ_PID_PATH"); envPath != "" {
-		return envPath
-	}
-	home, homeErr := os.UserCacheDir()
-	if homeErr != nil {
-		home = "/tmp"
-	}
-	return filepath.Join(home, pidFile)
-}
-
-func validatePort(port string) error {
-	portNumber, err := strconv.Atoi(port)
-	if err != nil || portNumber < 1 || portNumber > 65535 {
-		return fmt.Errorf("invalid port: %s (must be between 1 and 65535)", port)
-	}
-	return nil
-}
-
-func registerHandlers(mux *http.ServeMux) {
-	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/discord", discordHandler)
-	mux.HandleFunc("/slack", slackHandler)
-	mux.HandleFunc("/telegram", telegramHandler)
-	mux.HandleFunc("/metrics", prometheusMetricsHandler)
-	mux.HandleFunc("/grafana", grafanaHandler)
-}
-
-func Run(port string) error {
+func Run() error {
 	if IsRunning() {
-		return errors.New("service already running (pid file exists)")
+		if stopErr := shutdown(); stopErr != nil {
+			return stopErr
+		}
 	}
-
-	if err := validatePort(port); err != nil {
-		return err
+	var glbViper = viper.GetViper()
+	if glbViper == nil {
+		if err := loadConfig(""); err != nil {
+			return err
+		}
+		glbViper = viper.GetViper()
+	} else {
+		if readErr := glbViper.ReadInConfig(); readErr != nil {
+			return fmt.Errorf("failed to read config: %w", readErr)
+		}
 	}
 
 	mux := http.NewServeMux()
-	registerHandlers(mux)
-	config := getConfig(port)
+	registerErr := registerHandlers(mux)
+	if registerErr != nil {
+		return registerErr
+	}
 
-	srv := &http.Server{
-		Addr:         "127.0.0.1:" + config.Port,
+	lSrv = &http.Server{
+		Addr:         viper.GetString("address"),
 		Handler:      loggingMiddleware(mux),
-		ReadTimeout:  config.ReadTimeout,
-		WriteTimeout: config.WriteTimeout,
-		IdleTimeout:  config.IdleTimeout,
+		ReadTimeout:  viper.GetDuration("readTimeout"),
+		WriteTimeout: viper.GetDuration("writeTimeout"),
+		IdleTimeout:  viper.GetDuration("idleTimeout"),
 	}
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
 	go func() {
-		log.Printf("Service running on port %s\n", port)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Printf("Service running on port %s\n", viper.GetString("port"))
+		if err := lSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("Service encountered an error: %v\n", err)
 		}
 	}()
 
 	<-stop
-	fmt.Println("Shutting down service gracefully...")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Service shutdown failed: %v\n", err)
-		return fmt.Errorf("shutdown process failed: %w", err)
-	}
-	log.Println("Service stopped gracefully.")
-
-	return nil
+	return shutdown()
 }
 
 func Start(port string) error {
 	if IsRunning() {
 		return errors.New("service already running (pid file exists)")
 	}
-
-	if port == "" {
-		port = defaultPort
+	var configErr error
+	var vpr = viper.GetViper()
+	if vpr == nil {
+		if port == "" {
+			port = defaultPort
+		}
+		configErr = loadConfig(port)
+		if configErr != nil {
+			return configErr
+		}
 	}
-	cmd := exec.Command(os.Args[0], "service-run", "--port", port)
+	cmd := exec.Command(os.Args[0], "service-run", viper.ConfigFileUsed())
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -189,13 +166,13 @@ func GetServiceInfo() (int, string, string, error) {
 
 	data, err := os.ReadFile(pidPath)
 	if err != nil {
-		return 0, "", "", errors.New("service not running (PID file not found)")
+		return 0, "", "", os.ErrNotExist
 	}
 
 	lines := strings.Split(string(data), "\n")
 	pid, pidErr := strconv.Atoi(lines[0])
 	if pidErr != nil {
-		return 0, "", "", fmt.Errorf("invalid PID in PID file: %w", pidErr)
+		return 0, "", "", os.ErrInvalid
 	}
 
 	port := "unknown"
@@ -206,6 +183,42 @@ func GetServiceInfo() (int, string, string, error) {
 	return pid, port, pidPath, nil
 }
 
+func registerHandlers(mux *http.ServeMux) error {
+	var pathErr error
+	if integrations := viper.GetStringMap("integrations"); integrations == nil {
+		return os.ErrInvalid
+	} else {
+		for path := range integrations {
+			if isActive := viper.GetBool("integrations." + path + ".enabled"); !isActive {
+				continue
+			}
+			var healthPath, metricsPath, callbackPath string
+			if path == "" {
+				continue
+			}
+			healthPath, pathErr = url.JoinPath("/", path, "/health")
+			if pathErr != nil {
+				log.Printf("Invalid path: %s\n", path)
+				continue
+			}
+			metricsPath, pathErr = url.JoinPath("/", path, "/metrics")
+			if pathErr != nil {
+				log.Printf("Invalid path: %s\n", path)
+				continue
+			}
+			callbackPath, pathErr = url.JoinPath("/", path, "/receive")
+			if pathErr != nil {
+				log.Printf("Invalid path: %s\n", path)
+				continue
+			}
+			mux.HandleFunc(healthPath, healthHandler)
+			mux.HandleFunc(metricsPath, metricsHandler)
+			mux.HandleFunc(callbackPath, callbackHandler)
+		}
+	}
+	return nil
+}
+
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	uptime := time.Since(startTime).String()
 	response := fmt.Sprintf("OK\nUptime: %s\n", uptime)
@@ -213,27 +226,7 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(response))
 }
 
-func discordHandler(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("Discord integration endpoint"))
-}
-
-func slackHandler(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("Slack integration endpoint"))
-}
-
-func telegramHandler(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("Telegram integration endpoint"))
-}
-
-func grafanaHandler(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("Grafana integration endpoint"))
-}
-
-func prometheusMetricsHandler(w http.ResponseWriter, _ *http.Request) {
+func metricsHandler(w http.ResponseWriter, _ *http.Request) {
 	pm := GetPrometheusManager()
 	if !pm.IsEnabled() {
 		http.Error(w, "Prometheus integration is not enabled", http.StatusForbidden)
@@ -252,6 +245,17 @@ func prometheusMetricsHandler(w http.ResponseWriter, _ *http.Request) {
 			fmt.Println(fmt.Sprintf("Error writing metric '%s': %v", name, err))
 		}
 	}
+}
+
+func callbackHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// Aqui eu preciso de uma sugestão que seja simples, segura e eficiente.
+	// Somente uma ou duas opções de possibilidade retornos aceitáveis.
+	// E alguma forma de assegurar que não haja problemas de segurança.
+
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {

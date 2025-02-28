@@ -18,13 +18,11 @@ const (
 )
 
 // LogEntry concentra os dados de uma entrada de log.
-// Observação: cada campo tem um método chainable para facilitar sua construção.
+// Cada campo possui um método chainable para facilitar sua construção.
 type LogEntry struct {
-	Timestamp time.Time `json:"timestamp"`
-	Level     LogLevel  `json:"level"`
-	Source    string    `json:"source"`
-	// Embora na versão original _Context_ fosse uma string, o uso de metadados
-	// estruturados ficou concentrado em **Metadata**.
+	Timestamp time.Time              `json:"timestamp"`
+	Level     LogLevel               `json:"level"`
+	Source    string                 `json:"source"`
 	Context   string                 `json:"context,omitempty"`
 	Message   string                 `json:"message"`
 	Tags      map[string]string      `json:"tags,omitempty"`
@@ -36,8 +34,9 @@ type LogEntry struct {
 	Caller    string                 `json:"caller,omitempty"`
 }
 
-// NewLogEntry cria uma nova entrada de log com o timestamp atual e inicializa os mapas.
+// NewLogEntry cria uma nova entrada de log com timestamp atual e inicializa os mapas.
 func NewLogEntry() *LogEntry {
+	// Obter o nome da função que chamou a função NewLogEntry.
 	return &LogEntry{
 		Timestamp: time.Now().UTC(),
 		Tags:      make(map[string]string),
@@ -45,55 +44,46 @@ func NewLogEntry() *LogEntry {
 	}
 }
 
-// WithLevel define o nível do log.
 func (le *LogEntry) WithLevel(level LogLevel) *LogEntry {
 	le.Level = level
 	return le
 }
 
-// WithSource define a origem do log.
 func (le *LogEntry) WithSource(source string) *LogEntry {
 	le.Source = source
 	return le
 }
 
-// WithContext define um contexto para a entrada (opcional).
 func (le *LogEntry) WithContext(context string) *LogEntry {
 	le.Context = context
 	return le
 }
 
-// WithMessage define a mensagem da entrada.
 func (le *LogEntry) WithMessage(message string) *LogEntry {
 	le.Message = message
 	return le
 }
 
-// WithProcessID define o ID do processo.
 func (le *LogEntry) WithProcessID(pid int) *LogEntry {
 	le.ProcessID = pid
 	return le
 }
 
-// WithHostname define o hostname de onde o log se origina.
 func (le *LogEntry) WithHostname(hostname string) *LogEntry {
 	le.Hostname = hostname
 	return le
 }
 
-// WithSeverity define a severidade numérica do log.
 func (le *LogEntry) WithSeverity(severity int) *LogEntry {
 	le.Severity = severity
 	return le
 }
 
-// WithTraceID define um id para rastreamento.
 func (le *LogEntry) WithTraceID(traceID string) *LogEntry {
 	le.TraceID = traceID
 	return le
 }
 
-// AddTag adiciona ou sobrescreve uma tag.
 func (le *LogEntry) AddTag(key, value string) *LogEntry {
 	if le.Tags == nil {
 		le.Tags = make(map[string]string)
@@ -102,7 +92,6 @@ func (le *LogEntry) AddTag(key, value string) *LogEntry {
 	return le
 }
 
-// AddMetadata adiciona ou sobrescreve um metadado.
 func (le *LogEntry) AddMetadata(key string, value interface{}) *LogEntry {
 	if le.Metadata == nil {
 		le.Metadata = make(map[string]interface{})
@@ -111,7 +100,7 @@ func (le *LogEntry) AddMetadata(key string, value interface{}) *LogEntry {
 	return le
 }
 
-// Validate verifica se os campos obrigatórios foram informados.
+// Validate verifica os campos obrigatórios.
 func (le *LogEntry) Validate() error {
 	if le.Timestamp.IsZero() {
 		return errors.New("timestamp is required")

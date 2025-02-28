@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -30,19 +31,19 @@ type TextFormatter struct{}
 
 // Format converte a entrada de log para uma string formatada com cores e ícones.
 func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
-	noColor := os.Getenv("LOGZ_NO_COLOR") != ""
-	var icon, levelStr, reset string
+	// Se a variável LOGZ_NO_COLOR está definida ou se estamos em Windows, desliga cores.
+	noColor := os.Getenv("LOGZ_NO_COLOR") != "" || runtime.GOOS == "windows"
 
+	var icon, levelStr, reset string
 	if noColor {
-		// Sem cores nem ícones.
 		icon = ""
 		levelStr = string(entry.Level)
 		reset = ""
 	} else {
-		// Define o "reset" para voltar ao padrão.
+		// Define o "reset" ANSI
 		reset = "\033[0m"
 		var color string
-		// Escolhe cor e ícone conforme o nível.
+		// Escolhe cor e ícone conforme o nível
 		switch entry.Level {
 		case DEBUG:
 			color = "\033[34m" // azul
@@ -63,12 +64,11 @@ func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
 			color = ""
 			icon = ""
 		}
-		// Aplica as cores e define a string do nível formatada.
 		icon = color + icon + reset
 		levelStr = color + string(entry.Level) + reset
 	}
 
-	// Formata a saída: [timestamp] ícone LEVEL - mensagem (contexto)
+	// A formatação inclui timestamp, ícone, nível, mensagem e contexto.
 	return fmt.Sprintf("[%s] %s %s - %s (%s)",
 		entry.Timestamp.Format(time.RFC3339),
 		icon,
