@@ -3,7 +3,7 @@ module github.com/faelmori/logz
 go 1.24
 
 require (
-	github.com/coreos/go-systemd/v22 v22.5.0
+	github.com/faelmori/gkbxsrv v0.0.0-20250228001428-1ab63b4d05ce
 	github.com/fatih/color v1.18.0
 	github.com/go-echarts/go-echarts v1.0.0
 	github.com/olekukonko/tablewriter v0.0.5

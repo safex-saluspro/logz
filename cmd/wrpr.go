@@ -55,7 +55,8 @@ func (m *Logz) Command() *cobra.Command {
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Modo silencioso")
 
 	cmd.AddCommand(cli.LogzCmds()...)
-	cmd.AddCommand(cli.ViewersCmds()...)
+	cmd.AddCommand(cli.ServiceCmd())
+	cmd.AddCommand(cli.MetricsCmd())
 
 	setUsageDefinition(cmd)
 

@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"log"
+	"fmt"
 	"os"
 )
 
@@ -31,7 +31,9 @@ func NewLogger(level LogLevel, format string, outputPath, externalURL, zmqEndpoi
 		var err error
 		out, err = os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			log.Fatalf("Erro ao abrir arquivo de log: %v", err)
+			fmt.Println(fmt.Sprintf("Erro ao abrir arquivo de log: %v\nRedirecionando para stdout...", err))
+			// Se não for possível abrir o arquivo de log, redireciona para stdout.
+			out = os.Stdout
 		}
 	}
 
@@ -43,7 +45,9 @@ func NewLogger(level LogLevel, format string, outputPath, externalURL, zmqEndpoi
 	}
 	writer := NewDefaultWriter(out, formatter)
 
-	notifiers := []Notifier{}
+	var notifiers []Notifier
+	notifiers = make([]Notifier, 0)
+
 	if externalURL != "" || zmqEndpoint != "" {
 		extNotifier := NewExternalNotifier(externalURL, zmqEndpoint)
 		notifiers = append(notifiers, extNotifier)
@@ -105,8 +109,20 @@ func (l *Logger) log(level LogLevel, msg string, ctx map[string]interface{}) {
 		entry.AddMetadata(k, v)
 	}
 
+	// **Novidade:** Converte o contexto (map) para uma string e seta o campo Context da entrada.
+	if len(finalContext) > 0 {
+		ctxStr := ""
+		for k, v := range finalContext {
+			if ctxStr != "" {
+				ctxStr += ", "
+			}
+			ctxStr += fmt.Sprintf("%s=%v", k, v)
+		}
+		entry.WithContext(ctxStr)
+	}
+
 	if err := l.writer.Write(entry); err != nil {
-		log.Printf("Erro ao escrever log: %v", err)
+		fmt.Println(fmt.Sprintf("Erro ao escrever log: %v", err))
 	}
 	for _, notifier := range l.notifiers {
 		notifier.Notify(entry)

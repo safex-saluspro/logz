@@ -3,7 +3,6 @@ package logger
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -29,9 +28,12 @@ func NewExternalNotifier(url string, zmqEndpoint string) *ExternalNotifier {
 		var err error
 		socket, err = zmq4.NewSocket(zmq4.PUSH)
 		if err != nil {
-			log.Printf("Erro ao criar socket ZMQ: %v", err)
+			fmt.Println(fmt.Sprintf("Erro ao criar socket ZMQ: %v", err))
 		} else {
-			socket.Connect(zmqEndpoint)
+			connErr := socket.Connect(zmqEndpoint)
+			if connErr != nil {
+				return nil
+			}
 		}
 	}
 	return &ExternalNotifier{
@@ -47,12 +49,16 @@ func (n *ExternalNotifier) Notify(entry *LogEntry) {
 		data, _ := json.Marshal(entry)
 		_, err := http.Post(n.externalURL, "application/json", strings.NewReader(string(data)))
 		if err != nil {
-			log.Printf("Erro ao enviar log para %s: %v", n.externalURL, err)
+			fmt.Println(fmt.Sprintf("Erro ao enviar log para %s: %v", n.externalURL, err))
 		}
 	}
 	if n.zmqSocket != nil {
 		data, _ := json.Marshal(entry)
-		n.zmqSocket.Send(string(data), 0)
+		_, propagateErr := n.zmqSocket.Send(string(data), 0)
+		if propagateErr != nil {
+			fmt.Println(fmt.Sprintf("Erro ao enviar log para ZMQ: %v", propagateErr))
+			return
+		}
 	}
 }
 
@@ -81,6 +87,6 @@ func (n *DiscordNotifier) Notify(entry *LogEntry) {
 	jsonPayload, _ := json.Marshal(payload)
 	_, err := http.Post(n.webhook, "application/json", strings.NewReader(string(jsonPayload)))
 	if err != nil {
-		log.Printf("Erro ao enviar log para Discord: %v", err)
+		fmt.Println(fmt.Sprintf("Erro ao enviar log para Discord: %v", err))
 	}
 }
