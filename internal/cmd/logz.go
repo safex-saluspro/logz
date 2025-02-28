@@ -3,14 +3,12 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/pebbe/zmq4"
 	"log"
 	"net/http"
 	"os"
 	"runtime"
 	"strings"
-	"time"
-
-	"github.com/pebbe/zmq4"
 )
 
 type LogFormat string
@@ -70,16 +68,8 @@ func (l *Logger) Log(level LogLevel, msg string, ctx map[string]interface{}) {
 	if !l.shouldLog(level) {
 		return
 	}
-	timestamp := time.Now().UTC()
-	caller := getCallerInfo(3)
 
-	entry := LogEntry{
-		Timestamp: timestamp,
-		Level:     level,
-		Message:   msg,
-		Caller:    caller,
-		Context:   mergeContext(l.metadata, ctx),
-	}
+	entry := NewLogEntry()
 
 	l.writeLog(entry)
 	l.sendToExternal(entry)
@@ -111,7 +101,7 @@ func (l *Logger) writeLog(entry LogEntry) {
 		}
 		output = string(data)
 	} else {
-		output = fmt.Sprintf("[%s] %s - %s (%s)\n", entry.Timestamp.Format(time.RFC3339), entry.Level, entry.Message, entry.Caller)
+		output = fmt.Sprintf("[%s] %s - %s (%s)\n", entry.Timestamp, entry.Level, entry.Message, entry.Context)
 	}
 	fmt.Fprintln(l.output, output)
 }
@@ -135,7 +125,7 @@ func (l *Logger) sendToDiscord(entry LogEntry) {
 	if l.discordWebhook == "" {
 		return
 	}
-	message := fmt.Sprintf("**[%s] %s**\n%s", entry.Level, entry.Timestamp.Format(time.RFC3339), entry.Message)
+	message := fmt.Sprintf("**[%s] %s**\n%s", entry.Level, entry.Timestamp, entry.Message)
 	payload := map[string]string{"content": message}
 	jsonPayload, _ := json.Marshal(payload)
 	_, err := http.Post(l.discordWebhook, "application/json", strings.NewReader(string(jsonPayload)))

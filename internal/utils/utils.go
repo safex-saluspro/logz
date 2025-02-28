@@ -5,7 +5,7 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"fmt"
-	"github.com/faelmori/kbx/mods/utils"
+	"github.com/faelmori/gkbxsrv/utils"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/rand"
 	"io"

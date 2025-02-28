@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"github.com/faelmori/logz/cmd/cli"
-	logzCmd "github.com/faelmori/logz/internal/cmd"
 	"github.com/spf13/cobra"
-	"strconv"
 )
 
 type Logz struct{}
@@ -41,8 +39,8 @@ func (m *Logz) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         m.Module(),
 		Annotations: cli.GetDescriptions([]string{m.LongDescription(), m.ShortDescription()}, false),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return logzCmd.NewLogz().Log([]string{logType, message, name, strconv.FormatBool(quiet), show, strconv.FormatBool(follow), clearLogs, archive}...)
+		Run: func(cmd *cobra.Command, args []string) {
+			//return logzCmd.NewLogger([]string{logType, message, name, strconv.FormatBool(quiet), show, strconv.FormatBool(follow), clearLogs, archive}...))
 		},
 	}
 

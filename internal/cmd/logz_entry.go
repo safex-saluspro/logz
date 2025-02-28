@@ -45,7 +45,6 @@ type logEntryImpl struct {
 	VlTraceID   string            `json:"trace_id,omitempty"`
 	Caller      string            `json:"caller,omitempty"`
 }
-
 type LogRegistry struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Level     LogLevel               `json:"level"`
@@ -153,7 +152,4 @@ func (l *logEntryImpl) Validate() error {
 	}
 	return nil
 }
-
-func NewLogEntry() LogEntry {
-	return &logEntryImpl{}
-}
+func NewLogEntry() LogEntry { return &logEntryImpl{} }

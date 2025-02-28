@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	logzCmd "github.com/faelmori/logz/internal/cmd"
+
 	"github.com/spf13/cobra"
 )
 
@@ -23,11 +23,9 @@ func showLogzCmd() *cobra.Command {
 		Use:         "show",
 		Aliases:     []string{"list", "view"},
 		Annotations: GetDescriptions([]string{"Show logs", "Show logs"}, false),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Run: func(cmd *cobra.Command, args []string) {
 			newArgs := []string{nameFlagValue, fmt.Sprintf("%t", followFlagValue), fmt.Sprintf("%d", linesFlagValue), sinceFlagValue, untilFlagValue, fmt.Sprintf("%t", colorsFlagValue)}
 			args = append(args, newArgs...)
-			_, showLogzErr := logzCmd.NewLogz().ShowLog(args...)
-			return showLogzErr
 		},
 	}
 
@@ -48,11 +46,8 @@ func analyzeLogzCmd() *cobra.Command {
 		Use:         "analyze",
 		Aliases:     []string{"report"},
 		Annotations: GetDescriptions([]string{"Analyze logs", "Analyze logs"}, false),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if file == "" {
-				return fmt.Errorf("file flag is required")
-			}
-			return logzCmd.NewLogz().AnalyzeLog(file)
+		Run: func(cmd *cobra.Command, args []string) {
+			//return logzCmdz.NewLogger(os.Stdout).Analyze(file)
 		},
 	}
 	analyzeCmd.Flags().StringVarP(&file, "file", "f", "", "Log file to analyze")
