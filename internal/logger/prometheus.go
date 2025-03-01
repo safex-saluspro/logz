@@ -1,4 +1,4 @@
-package services
+package logger
 
 import (
 	"encoding/json"

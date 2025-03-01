@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"github.com/faelmori/logz/internal/services"
+	"github.com/faelmori/logz/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -19,28 +19,40 @@ func ServiceCmd() *cobra.Command {
 }
 
 func startServiceCmd() *cobra.Command {
-	var port string
-
-	startCmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "start",
-		Short: "Start the web service in the background",
+		Short: "Inicia o serviço destacado",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := services.Start(port); err != nil {
-				fmt.Printf("Error starting service: %v\n", err)
+			configManager := logger.NewConfigManager()
+			if configManager == nil {
+				fmt.Println("Erro ao inicializar ConfigManager.")
+				return
+			}
+			cfgMgr := *configManager
+
+			config, err := cfgMgr.LoadConfig()
+			if err != nil {
+				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				return
+			}
+
+			if err := logger.Start(config.Port()); err != nil {
+				fmt.Printf("Erro ao iniciar serviço: %v\n", err)
+			} else {
+				fmt.Println("Serviço iniciado com sucesso.")
 			}
 		},
 	}
-
-	startCmd.Flags().StringVarP(&port, "port", "p", "9999", "Port to listen on")
-	return startCmd
 }
 func stopServiceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the running web service",
+		Short: "Para o serviço destacado",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := services.Stop(); err != nil {
-				fmt.Printf("Error stopping service: %v\n", err)
+			if err := logger.Stop(); err != nil {
+				fmt.Printf("Erro ao parar serviço: %v\n", err)
+			} else {
+				fmt.Println("Serviço parado com sucesso.")
 			}
 		},
 	}
@@ -50,7 +62,7 @@ func getServiceCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Get information about the running service",
 		Run: func(cmd *cobra.Command, args []string) {
-			pid, port, pidPath, err := services.GetServiceInfo()
+			pid, port, pidPath, err := logger.GetServiceInfo()
 			if err != nil {
 				fmt.Println("Service is not running")
 			} else {
@@ -66,7 +78,7 @@ func spawnServiceCmd() *cobra.Command {
 		Use:    "spawn",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := services.Run(); err != nil {
+			if err := logger.Run(); err != nil {
 				return err
 			}
 			return nil

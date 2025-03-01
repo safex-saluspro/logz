@@ -2,17 +2,9 @@ package logger
 
 import (
 	"fmt"
-	"github.com/faelmori/logz/internal/services"
 	"github.com/godbus/dbus/v5"
 	"github.com/pebbe/zmq4"
 	"net/http"
-)
-
-var (
-	lServer *http.Server
-	lSocket *zmq4.Socket
-	lClient *http.Client
-	lDBus   *dbus.Conn
 )
 
 type NotifierManager interface {
@@ -71,25 +63,25 @@ func (nm *NotifierManagerImpl) ListNotifiers() []string {
 
 func (nm *NotifierManagerImpl) WebServer() *http.Server {
 	if nm.webServer == nil {
-		nm.webServer = services.Server()
+		nm.webServer = Server()
 	}
 	return nm.webServer
 }
 func (nm *NotifierManagerImpl) Websocket() *zmq4.Socket {
 	if nm.websocket == nil {
-		nm.websocket = services.Socket()
+		nm.websocket = Socket()
 	}
 	return nm.websocket
 }
 func (nm *NotifierManagerImpl) WebClient() *http.Client {
 	if nm.webClient == nil {
-		nm.webClient = services.Client()
+		nm.webClient = Client()
 	}
 	return nm.webClient
 }
 func (nm *NotifierManagerImpl) DBusClient() *dbus.Conn {
 	if nm.dbusClient == nil {
-		nm.dbusClient = services.DBus()
+		nm.dbusClient = DBus()
 	}
 	return nm.dbusClient
 }

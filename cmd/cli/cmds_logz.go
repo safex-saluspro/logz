@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// LogzCmds retorna os comandos CLI para os diferentes níveis de log.
+// LogzCmds retorna os comandos CLI para diferentes níveis de log e gerenciamento.
 func LogzCmds() []*cobra.Command {
 	return []*cobra.Command{
 		newLogCmd("debug", []string{"dbg"}),
@@ -19,12 +19,13 @@ func LogzCmds() []*cobra.Command {
 		newLogCmd("error", []string{"err"}),
 		newLogCmd("fatal", []string{"ftl"}),
 		watchLogsCmd(),
+		startServiceCmd(),
+		stopServiceCmd(),
 	}
 }
 
 // newLogCmd configura um comando para um nível de log específico.
 func newLogCmd(level string, aliases []string) *cobra.Command {
-	var format, outputPath, externalURL, zmqEndpoint, discordWebhook string
 	var metaData, ctx map[string]string
 	var msg string
 
@@ -33,7 +34,20 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 		Aliases: aliases,
 		Short:   "Loga uma mensagem de nível " + level,
 		Run: func(cmd *cobra.Command, args []string) {
-			logr := logger.NewLogger(parseLogLevel(level), format, outputPath)
+			configManager := logger.NewConfigManager()
+			if configManager == nil {
+				fmt.Println("Erro ao inicializar ConfigManager.")
+				return
+			}
+			cfgMgr := *configManager
+
+			config, err := cfgMgr.LoadConfig()
+			if err != nil {
+				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				return
+			}
+
+			logr := logger.NewLogger(config)
 			for k, v := range metaData {
 				logr.SetMetadata(k, v)
 			}
@@ -58,11 +72,6 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&format, "format", "f", "text", "Formato do log (text ou json)")
-	cmd.Flags().StringVarP(&outputPath, "output", "o", "stdout", "Destino do output do log")
-	cmd.Flags().StringVarP(&externalURL, "external-url", "e", "", "URL externa para enviar o log")
-	cmd.Flags().StringVarP(&zmqEndpoint, "zmq-endpoint", "z", "", "Endpoint ZMQ")
-	cmd.Flags().StringVarP(&discordWebhook, "discord-webhook", "d", "", "Webhook do Discord")
 	cmd.Flags().StringToStringVarP(&metaData, "metadata", "m", nil, "Metadados a serem incluídos")
 	cmd.Flags().StringToStringVarP(&ctx, "context", "c", nil, "Contexto para o log")
 	cmd.Flags().StringVarP(&msg, "msg", "M", "", "Mensagem do log")
@@ -70,15 +79,30 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 	return cmd
 }
 
+// watchLogsCmd monitora logs em tempo real.
 func watchLogsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "watch",
 		Aliases: []string{"w"},
-		Short:   "Watch logs in real time",
+		Short:   "Monitora logs em tempo real",
 		Run: func(cmd *cobra.Command, args []string) {
-			logFilePath := "./logz.log" // Ajuste isso conforme sua configuração
+			configManager := logger.NewConfigManager()
+			if configManager == nil {
+				fmt.Println("Erro ao inicializar ConfigManager.")
+				return
+			}
+			cfgMgr := *configManager
+
+			config, err := cfgMgr.LoadConfig()
+			if err != nil {
+				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				return
+			}
+
+			logFilePath := config.DefaultLogPath()
 			reader := logger.NewFileLogReader()
 			stopChan := make(chan struct{})
+
 			// Captura sinais para interrupção
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -86,16 +110,19 @@ func watchLogsCmd() *cobra.Command {
 				<-sigChan
 				close(stopChan)
 			}()
-			fmt.Println("Watching logs (press Ctrl+C to exit):")
+
+			fmt.Println("Monitoração iniciada (Ctrl+C para sair):")
 			if err := reader.Tail(logFilePath, stopChan); err != nil {
-				fmt.Printf("Error watching logs: %v\n", err)
+				fmt.Printf("Erro ao monitorar logs: %v\n", err)
 			}
+
 			// Aguarda um pequeno delay para finalizar
 			time.Sleep(500 * time.Millisecond)
 		},
 	}
 }
 
+// parseLogLevel mapeia o nível de log para o enum correspondente.
 func parseLogLevel(level string) logger.LogLevel {
 	switch level {
 	case "debug":

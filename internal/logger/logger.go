@@ -2,12 +2,21 @@ package logger
 
 import (
 	"fmt"
-	"github.com/faelmori/logz/internal/services"
 	"log"
 	"os"
 	"runtime"
 	"strings"
 	"time"
+)
+
+type LogMode string
+type LogFormat string
+
+const (
+	JSONFormat     LogFormat = "json"
+	TextFormat     LogFormat = "text"
+	ModeService    LogMode   = "service"    // Indica que o logger está sendo usado por um processo destacado
+	ModeStandalone LogMode   = "standalone" // Indica que o logger está sendo usado localmente (ex.: CLI)
 )
 
 var logLevels = map[LogLevel]int{
@@ -23,39 +32,38 @@ type Logger struct {
 	writer   LogWriter
 	config   Config
 	metadata map[string]interface{}
+	mode     LogMode // Controle de modo: service ou standalone
 }
 
-func NewLogger(level LogLevel, format, outputPath string) *Logger {
+func NewLogger(config Config) *Logger {
+	// Define o nível de log a partir do Config
+	level := LogLevel(config.Level()) // Método config.Level() retorna o nível de log como string
+
 	var out *os.File
-	if outputPath == "stdout" {
+	if config.DefaultLogPath() == "stdout" {
 		out = os.Stdout
 	} else {
 		var err error
-		out, err = os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		out, err = os.OpenFile(config.DefaultLogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			fmt.Println(fmt.Sprintf("Erro ao abrir arquivo de log: %v\nRedirecionando para stdout...", err))
+			fmt.Printf("Erro ao abrir arquivo de log: %v\nRedirecionando para stdout...\n", err)
 			out = os.Stdout
 		}
 	}
 
+	// Inicializa o formatador (JSON ou texto)
 	var formatter LogFormatter
-	if format == "json" {
+	if config.Format() == "json" {
 		formatter = &JSONFormatter{}
 	} else {
 		formatter = &TextFormatter{}
 	}
 	writer := NewDefaultWriter(out, formatter)
-	configManager := NewConfigManager()
 
-	var config Config
-	var configErr error
-
-	if configManager != nil {
-		cfgMgr := *configManager
-		config, configErr = cfgMgr.LoadConfig()
-		if configErr != nil {
-			log.Fatalf("Erro ao carregar configuração: %v", configErr)
-		}
+	// Lê o modo do Config
+	mode := config.Mode()
+	if mode != ModeService && mode != ModeStandalone {
+		mode = ModeStandalone // Default para standalone se não especificado
 	}
 
 	return &Logger{
@@ -63,6 +71,7 @@ func NewLogger(level LogLevel, format, outputPath string) *Logger {
 		writer:   writer,
 		config:   config,
 		metadata: make(map[string]interface{}),
+		mode:     mode,
 	}
 }
 
@@ -79,22 +88,27 @@ func (l *Logger) log(level LogLevel, msg string, ctx map[string]interface{}) {
 
 	timestamp := time.Now().UTC()
 	caller := getCallerInfo(3)
+
 	entry := NewLogEntry().
 		WithLevel(level).
 		WithMessage(msg).
 		WithSeverity(logLevels[level])
 	entry.Timestamp = timestamp
 	entry.Caller = caller
+
+	// Mescla os metadados globais e locais
 	finalContext := mergeContext(l.metadata, ctx)
 	for k, v := range finalContext {
 		entry.AddMetadata(k, v)
 	}
 
+	// Escreve o log utilizando o writer configurado
 	if err := l.writer.Write(entry); err != nil {
 		log.Printf("Erro ao escrever log: %v", err)
 	}
 
-	if l.config != nil {
+	// Apenas no modo de serviço, notificar via Notifiers
+	if l.mode == ModeService && l.config != nil {
 		for _, name := range l.config.NotifierManager().ListNotifiers() {
 			if notifier, ok := l.config.NotifierManager().GetNotifier(name); ok {
 				if notifier != nil {
@@ -107,12 +121,16 @@ func (l *Logger) log(level LogLevel, msg string, ctx map[string]interface{}) {
 		}
 	}
 
-	pm := services.GetPrometheusManager()
-	if pm.IsEnabled() {
-		pm.IncrementMetric("logs_total", 1)
-		pm.IncrementMetric("logs_total_"+string(level), 1)
+	// Atualiza métricas no PrometheusManager, se habilitado
+	if l.mode == ModeService {
+		pm := GetPrometheusManager()
+		if pm.IsEnabled() {
+			pm.IncrementMetric("logs_total", 1)
+			pm.IncrementMetric("logs_total_"+string(level), 1)
+		}
 	}
 
+	// Finaliza o processo em caso de log FATAL
 	if level == FATAL {
 		os.Exit(1)
 	}

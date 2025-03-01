@@ -58,60 +58,66 @@ func NewNotifier(manager NotifierManager, enabled bool, webhookURL, httpMethod, 
 }
 
 func (n *NotifierImpl) Notify(entry *LogEntry) error {
-	if n.VlEnabled {
-		if n.VlLogLevel != "" {
-			if n.VlLogLevel != string(entry.Level) {
-				return nil
-			}
-		}
-		if n.VlWebhookURL != "" {
-			if n.VlHttpMethod == "POST" {
-				bodyObj, err := http.NewRequest("POST", n.VlWebhookURL, strings.NewReader(entry.Message))
-				if err != nil {
-					return err
-				}
-				if n.VlAuthToken != "" {
-					bodyObj.Header.Set("Authorization", "Bearer "+n.VlAuthToken)
-				}
-				bodyObj.Header.Set("Content-Type", "application/json")
-				resp, err := n.WebClient().Do(bodyObj)
-				if err != nil {
-					return err
-				}
-				defer func(Body io.ReadCloser) {
-					_ = Body.Close()
-				}(resp.Body)
+	if !n.VlEnabled {
+		return nil
+	}
 
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("erro ao enviar log para %s: %s", n.VlWebhookURL, resp.Status)
-				}
-			} else {
-				return fmt.Errorf("método HTTP inválido: %s", n.VlHttpMethod)
+	// Valida LogLevel
+	if n.VlLogLevel != "" && n.VlLogLevel != string(entry.Level) {
+		return nil
+	}
+
+	// Valida Whitelist
+	if len(n.VlWhitelist) > 0 && !contains(n.VlWhitelist, entry.Source) {
+		return nil
+	}
+
+	// HTTP Notification
+	if n.VlWebhookURL != "" {
+		if n.VlHttpMethod == "POST" {
+			req, err := http.NewRequest("POST", n.VlWebhookURL, strings.NewReader(entry.Message))
+			if err != nil {
+				return fmt.Errorf("HTTP request creation error: %w", err)
 			}
-		}
-		if n.VlWsEndpoint != "" {
 			if n.VlAuthToken != "" {
-				message := n.VlAuthToken + "|" + entry.Message
-				if _, err := n.Websocket().Send(message, 0); err != nil {
-					return err
-				}
-			} else {
-				if _, err := n.Websocket().Send(entry.Message, 0); err != nil {
-					return err
-				}
+				req.Header.Set("Authorization", "Bearer "+n.VlAuthToken)
 			}
-		}
-		if n.DBusClient() != nil {
-			output := fmt.Sprintf("DBusNotifier: sending log [%s]", entry.Message)
-			if n.VlAuthToken != "" {
-				output = n.VlAuthToken + "|" + output
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := n.WebClient().Do(req)
+			if err != nil {
+				return fmt.Errorf("HTTP request error: %w", err)
 			}
-			dbusObj := n.DBusClient().Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
-			dbusObj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0), "", output, []string{}, map[string]dbus.Variant{}, int32(5000))
+			defer func(Body io.ReadCloser) {
+				_ = Body.Close()
+			}(resp.Body)
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("HTTP request failed: %s", resp.Status)
+			}
+		} else {
+			return fmt.Errorf("invalid HTTP method: %s", n.VlHttpMethod)
 		}
 	}
+
+	// WebSocket Notification
+	if n.VlWsEndpoint != "" {
+		message := n.VlAuthToken + "|" + entry.Message
+		if _, err := n.Websocket().Send(message, 0); err != nil {
+			return fmt.Errorf("WebSocket error: %w", err)
+		}
+	}
+
+	// DBus Notification
+	if n.DBusClient() != nil {
+		output := n.VlAuthToken + "|" + entry.Message
+		dbusObj := n.DBusClient().Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
+		if call := dbusObj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0), "", output, []string{}, map[string]dbus.Variant{}, int32(5000)); call.Err != nil {
+			return fmt.Errorf("DBus call error: %w", call.Err)
+		}
+	}
+
 	return nil
 }
+
 func (n *NotifierImpl) Enable()                 { n.VlEnabled = true }
 func (n *NotifierImpl) Disable()                { n.VlEnabled = false }
 func (n *NotifierImpl) Enabled() bool           { return n.VlEnabled }
@@ -161,4 +167,13 @@ func (n *NotifierImpl) Whitelist(whiteList []string) []string {
 		n.VlWhitelist = whiteList
 	}
 	return n.VlWhitelist
+}
+
+func contains(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
 }
