@@ -18,30 +18,10 @@ import (
 	"time"
 )
 
-const (
-	defaultPort        = "9999"
-	defaultBindAddress = "0.0.0.0"
-	pidFile            = "logz_srv.pid"
-)
-
 var (
 	lSrv      *http.Server
 	startTime = time.Now()
 )
-
-type Config struct {
-	Port           string
-	BindAddress    string
-	Address        string
-	PidFile        string
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
-	IdleTimeout    time.Duration
-	DefaultLogPath string
-	Integrations   map[string]struct {
-		enabled bool
-	}
-}
 
 func Run() error {
 	if IsRunning() {
@@ -51,10 +31,7 @@ func Run() error {
 	}
 	var glbViper = viper.GetViper()
 	if glbViper == nil {
-		if err := loadConfig(""); err != nil {
-			return err
-		}
-		glbViper = viper.GetViper()
+		return errors.New("viper not initialized")
 	} else {
 		if readErr := glbViper.ReadInConfig(); readErr != nil {
 			return fmt.Errorf("failed to read config: %w", readErr)
@@ -87,21 +64,13 @@ func Run() error {
 	<-stop
 	return shutdown()
 }
-
 func Start(port string) error {
 	if IsRunning() {
-		return errors.New("service already running (pid file exists)")
+		return errors.New("service already running (pid file exists: " + getPidPath() + ")")
 	}
-	var configErr error
 	var vpr = viper.GetViper()
 	if vpr == nil {
-		if port == "" {
-			port = defaultPort
-		}
-		configErr = loadConfig(port)
-		if configErr != nil {
-			return configErr
-		}
+		return errors.New("viper not initialized")
 	}
 	cmd := exec.Command(os.Args[0], "service-run", viper.ConfigFileUsed())
 
@@ -132,7 +101,6 @@ func Start(port string) error {
 	fmt.Printf("Service started with pid %d\n", pid)
 	return nil
 }
-
 func Stop() error {
 	pid, port, pidPath, err := GetServiceInfo()
 	if err != nil {
@@ -155,12 +123,10 @@ func Stop() error {
 	log.Printf("Service with pid %d and port %s stopped", pid, port)
 	return nil
 }
-
 func IsRunning() bool {
 	_, err := os.Stat(getPidPath())
 	return err == nil
 }
-
 func GetServiceInfo() (int, string, string, error) {
 	pidPath := getPidPath()
 
@@ -218,14 +184,12 @@ func registerHandlers(mux *http.ServeMux) error {
 	}
 	return nil
 }
-
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	uptime := time.Since(startTime).String()
 	response := fmt.Sprintf("OK\nUptime: %s\n", uptime)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(response))
 }
-
 func metricsHandler(w http.ResponseWriter, _ *http.Request) {
 	pm := GetPrometheusManager()
 	if !pm.IsEnabled() {
@@ -246,7 +210,6 @@ func metricsHandler(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 }
-
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -257,7 +220,6 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	// E alguma forma de assegurar que não haja problemas de segurança.
 
 }
-
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request for %s from %s\n", r.Method, r.URL.Path, r.RemoteAddr)

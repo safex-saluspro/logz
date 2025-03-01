@@ -62,7 +62,7 @@ func addMetricCmd() *cobra.Command {
 				return
 			}
 			pm := services.GetPrometheusManager()
-			pm.AddMetric(name, value)
+			pm.AddMetric(name, value, nil)
 		},
 	}
 }

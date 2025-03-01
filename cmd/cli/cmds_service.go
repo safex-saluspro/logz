@@ -19,6 +19,7 @@ func ServiceCmd() *cobra.Command {
 
 func startServiceCmd() *cobra.Command {
 	var port string
+
 	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start the web service in the background",
@@ -28,6 +29,7 @@ func startServiceCmd() *cobra.Command {
 			}
 		},
 	}
+
 	startCmd.Flags().StringVarP(&port, "port", "p", "9999", "Port to listen on")
 	return startCmd
 }

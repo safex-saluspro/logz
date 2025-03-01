@@ -5,19 +5,22 @@ go 1.24
 require (
 	github.com/faelmori/gkbxsrv v0.0.0-20250228001428-1ab63b4d05ce
 	github.com/fatih/color v1.18.0
+	github.com/fsnotify/fsnotify v1.8.0
 	github.com/go-echarts/go-echarts v1.0.0
+	github.com/goccy/go-json v0.10.5
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pebbe/zmq4 v1.2.11
 	github.com/prometheus/client_golang v1.21.0
 	github.com/spf13/cobra v1.9.1
+	github.com/spf13/viper v1.19.0
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
+	golang.org/x/net v0.35.0
 	golang.org/x/text v0.22.0
 )
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
@@ -38,7 +41,6 @@ require (
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
-	github.com/spf13/viper v1.19.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect

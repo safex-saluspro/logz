@@ -34,7 +34,7 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 		Short:   "Loga uma mensagem de nível " + level,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Cria o Logger usando os parâmetros fornecidos.
-			logr := logger.NewLogger(logger.ParseLogLevel(level), format, outputPath, externalURL, zmqEndpoint, discordWebhook)
+			logr := logger.NewLogger(parseLogLevel(level), format, outputPath)
 			for k, v := range metaData {
 				logr.SetMetadata(k, v)
 			}
@@ -96,5 +96,22 @@ func watchLogsCmd() *cobra.Command {
 			// Aguarda um pequeno delay para finalizar
 			time.Sleep(500 * time.Millisecond)
 		},
+	}
+}
+
+func parseLogLevel(level string) logger.LogLevel {
+	switch level {
+	case "debug":
+		return logger.DEBUG
+	case "info":
+		return logger.INFO
+	case "warn":
+		return logger.WARN
+	case "error":
+		return logger.ERROR
+	case "fatal":
+		return logger.FATAL
+	default:
+		return logger.INFO
 	}
 }

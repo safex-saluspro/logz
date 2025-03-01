@@ -2,45 +2,65 @@ package logger
 
 import (
 	"fmt"
-	"github.com/faelmori/logz/internal/services"
-	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/viper"
-	"log"
+	"github.com/godbus/dbus/v5"
+	"github.com/pebbe/zmq4"
+	"net/http"
 )
 
-// NotifierManager centraliza o gerenciamento dos Notifiers.
-// Ele mantém um mapa associando um nome (string) a instâncias de Notifier.
-type NotifierManager struct {
-	notifiers map[string]Notifier
+var (
+	lServer *http.Server
+	lSocket *zmq4.Socket
+	lClient *http.Client
+	lDBus   *dbus.Conn
+)
+
+type NotifierManager interface {
+	WebServer(webServer *http.Server) *http.Server
+	Websocket(websocket *zmq4.Socket) *zmq4.Socket
+	WebClient(webClient *http.Client) *http.Client
+	DBusClient(dBusClient *dbus.Conn) *dbus.Conn
+
+	AddNotifier(name string, notifier Notifier)
+	RemoveNotifier(name string)
+	GetNotifier(name string) (*Notifier, bool)
+	ListNotifiers() []string
+}
+type NotifierManagerImpl struct {
+	webServer  *http.Server
+	websocket  *zmq4.Socket
+	webClient  *http.Client
+	dbusClient *dbus.Conn
+	notifiers  map[string]Notifier
 }
 
-// NewNotifierManager cria uma nova instância de NotifierManager.
-func NewNotifierManager() *NotifierManager {
-	return &NotifierManager{
-		notifiers: make(map[string]Notifier),
+func NewNotifierManager(notifiers map[string]Notifier) *NotifierManager {
+	if notifiers == nil {
+		notifiers = make(map[string]Notifier)
 	}
+	ntfMgr := &NotifierManagerImpl{notifiers: notifiers}
+
+	var ntfM NotifierManager
+	ntfM = ntfMgr
+
+	return &ntfM
 }
 
-// AddNotifier adiciona ou atualiza um Notifier com o nome especificado.
-func (nm *NotifierManager) AddNotifier(name string, notifier Notifier) {
+func (nm *NotifierManagerImpl) AddNotifier(name string, notifier Notifier) {
 	nm.notifiers[name] = notifier
 	fmt.Printf("Notifier '%s' added/updated.\n", name)
 }
-
-// RemoveNotifier remove o Notifier associado ao nome.
-func (nm *NotifierManager) RemoveNotifier(name string) {
+func (nm *NotifierManagerImpl) RemoveNotifier(name string) {
 	delete(nm.notifiers, name)
 	fmt.Printf("Notifier '%s' removed.\n", name)
 }
-
-// GetNotifier retorna o Notifier associado ao nome.
-func (nm *NotifierManager) GetNotifier(name string) (Notifier, bool) {
-	notifier, ok := nm.notifiers[name]
-	return notifier, ok
+func (nm *NotifierManagerImpl) GetNotifier(name string) (*Notifier, bool) {
+	if notifier, ok := nm.notifiers[name]; ok {
+		return &notifier, true
+	} else {
+		return nil, false
+	}
 }
-
-// ListNotifiers retorna uma lista com os nomes de todos os Notifiers registrados.
-func (nm *NotifierManager) ListNotifiers() []string {
+func (nm *NotifierManagerImpl) ListNotifiers() []string {
 	keys := make([]string, 0, len(nm.notifiers))
 	for name := range nm.notifiers {
 		keys = append(keys, name)
@@ -48,111 +68,39 @@ func (nm *NotifierManager) ListNotifiers() []string {
 	return keys
 }
 
-// UpdateFromConfig atualiza o estado do NotifierManager a partir da configuração.
-// Espera que a configuração contenha uma seção "notifiers" estruturada, por exemplo:
-// notifiers:
-//
-//	external:
-//	  type: "external"
-//	  externalURL: "https://discord.com/api/webhooks/XYZ"
-//	  zmqEndpoint: "tcp://localhost:5556"
-//	dbus:
-//	  type: "dbus"
-//	  enabled: true
-//	zmqsec:
-//	  type: "zmqsec"
-//	  enabled: true
-//	  zmqEndpoint: "tcp://localhost:5555"
-//	  privateKeyPath: "/path/to/kubex-key.pem"
-//	  certPath: "/path/to/kubex-cert.pem"
-//	  configPath: "/path/to/config.json"
-func (nm *NotifierManager) UpdateFromConfig() error {
-	var configNotifiers map[string]map[string]interface{}
-	if err := viper.UnmarshalKey("notifiers", &configNotifiers); err != nil {
-		return fmt.Errorf("failed to parse notifiers config: %w", err)
+func (nm *NotifierManagerImpl) WebServer(webServer *http.Server) *http.Server {
+	if webServer != nil {
+		lServer = webServer
+		nm.webServer = webServer
+	} else if nm.webServer == nil {
+		nm.webServer = lServer
 	}
-
-	for name, conf := range configNotifiers {
-		typ, ok := conf["type"].(string)
-		if !ok {
-			// Ignora se não houver um tipo definido.
-			continue
-		}
-
-		switch typ {
-		case "external":
-			externalURL, _ := conf["externalURL"].(string)
-			zmqEndpoint, _ := conf["zmqEndpoint"].(string)
-			notifier := NewExternalNotifier(externalURL, zmqEndpoint)
-			// Se houver token, podemos verificá-lo
-			if token, ok := conf["authToken"].(string); ok {
-				notifier.SetAuthToken(token)
-			}
-			nm.AddNotifier(name, notifier)
-
-		case "dbus":
-			enabled, _ := conf["enabled"].(bool)
-			notifier := NewDBusNotifier()
-			if enabled {
-				notifier.Enable()
-			} else {
-				notifier.Disable()
-			}
-			// Se houver token, podemos setar
-			if token, ok := conf["authToken"].(string); ok {
-				notifier.SetAuthToken(token)
-			}
-			nm.AddNotifier(name, notifier)
-
-		case "zmqsec":
-			enabled, _ := conf["enabled"].(bool)
-			// Assume que os demais campos são obrigatórios para essa configuração.
-			zmqEndpoint, _ := conf["zmqEndpoint"].(string)
-			privateKeyPath, _ := conf["privateKeyPath"].(string)
-			certPath, _ := conf["certPath"].(string)
-			configPath, _ := conf["configPath"].(string)
-			notifier := NewZMQSecNotifier(zmqEndpoint, privateKeyPath, certPath, configPath)
-			if enabled {
-				notifier.Enable()
-			}
-			// Token opcional
-			if token, ok := conf["authToken"].(string); ok {
-				notifier.SetAuthToken(token)
-			}
-			nm.AddNotifier(name, notifier)
-
-		default:
-			// Se o tipo é desconhecido, podemos emitir um log e continuar.
-			fmt.Printf("Unknown notifier type '%s' for notifier '%s'\n", typ, name)
-			continue
-		}
-	}
-	return nil
+	return nm.webServer
 }
-
-// Supondo que notifierManager seja uma variável global.
-var notifierManager = NewNotifierManager()
-
-func loadConfigAndWatch(port string) error {
-	// Configuração de Viper conforme seu código existente.
-	cfgPath, cfgType, err := services.GetConfig(port)
-	if err != nil {
-		return err
+func (nm *NotifierManagerImpl) Websocket(websocket *zmq4.Socket) *zmq4.Socket {
+	if websocket != nil {
+		lSocket = websocket
+		nm.websocket = websocket
+	} else if nm.websocket == nil {
+		nm.websocket = lSocket
 	}
-	viper.SetConfigFile(cfgPath)
-	viper.SetConfigType(cfgType)
-	if err := viper.ReadInConfig(); err != nil {
-		return fmt.Errorf("erro ao ler config: %w", err)
+	return nm.websocket
+}
+func (nm *NotifierManagerImpl) WebClient(webClient *http.Client) *http.Client {
+	if webClient != nil {
+		lClient = webClient
+		nm.webClient = webClient
+	} else if nm.webClient == nil {
+		nm.webClient = lClient
 	}
-	viper.WatchConfig()
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		log.Printf("Configuração alterada: %s", e.Name)
-		// Atualiza os notifiers a partir da nova configuração.
-		if err := notifierManager.UpdateFromConfig(); err != nil {
-			log.Printf("Erro ao atualizar notifiers: %v", err)
-		} else {
-			log.Println("Notifiers atualizados com sucesso.")
-		}
-	})
-	return nil
+	return nm.webClient
+}
+func (nm *NotifierManagerImpl) DBusClient(dBusClient *dbus.Conn) *dbus.Conn {
+	if dBusClient != nil {
+		lDBus = dBusClient
+		nm.dbusClient = dBusClient
+	} else if nm.dbusClient == nil {
+		nm.dbusClient = lDBus
+	}
+	return nm.dbusClient
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// LogLevel representa os níveis de log suportados.
 type LogLevel string
 
 const (
@@ -17,8 +16,6 @@ const (
 	FATAL LogLevel = "FATAL"
 )
 
-// LogEntry concentra os dados de uma entrada de log.
-// Cada campo possui um método chainable para facilitar sua construção.
 type LogEntry struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Level     LogLevel               `json:"level"`
@@ -34,7 +31,6 @@ type LogEntry struct {
 	Caller    string                 `json:"caller,omitempty"`
 }
 
-// NewLogEntry cria uma nova entrada de log com timestamp atual e inicializa os mapas.
 func NewLogEntry() *LogEntry {
 	// Obter o nome da função que chamou a função NewLogEntry.
 	return &LogEntry{
@@ -48,42 +44,34 @@ func (le *LogEntry) WithLevel(level LogLevel) *LogEntry {
 	le.Level = level
 	return le
 }
-
 func (le *LogEntry) WithSource(source string) *LogEntry {
 	le.Source = source
 	return le
 }
-
 func (le *LogEntry) WithContext(context string) *LogEntry {
 	le.Context = context
 	return le
 }
-
 func (le *LogEntry) WithMessage(message string) *LogEntry {
 	le.Message = message
 	return le
 }
-
 func (le *LogEntry) WithProcessID(pid int) *LogEntry {
 	le.ProcessID = pid
 	return le
 }
-
 func (le *LogEntry) WithHostname(hostname string) *LogEntry {
 	le.Hostname = hostname
 	return le
 }
-
 func (le *LogEntry) WithSeverity(severity int) *LogEntry {
 	le.Severity = severity
 	return le
 }
-
 func (le *LogEntry) WithTraceID(traceID string) *LogEntry {
 	le.TraceID = traceID
 	return le
 }
-
 func (le *LogEntry) AddTag(key, value string) *LogEntry {
 	if le.Tags == nil {
 		le.Tags = make(map[string]string)
@@ -91,7 +79,6 @@ func (le *LogEntry) AddTag(key, value string) *LogEntry {
 	le.Tags[key] = value
 	return le
 }
-
 func (le *LogEntry) AddMetadata(key string, value interface{}) *LogEntry {
 	if le.Metadata == nil {
 		le.Metadata = make(map[string]interface{})
@@ -99,8 +86,6 @@ func (le *LogEntry) AddMetadata(key string, value interface{}) *LogEntry {
 	le.Metadata[key] = value
 	return le
 }
-
-// Validate verifica os campos obrigatórios.
 func (le *LogEntry) Validate() error {
 	if le.Timestamp.IsZero() {
 		return errors.New("timestamp is required")
@@ -116,8 +101,6 @@ func (le *LogEntry) Validate() error {
 	}
 	return nil
 }
-
-// String retorna uma representação simples da entrada de log.
 func (le *LogEntry) String() string {
 	return fmt.Sprintf("[%s] %s - %s",
 		le.Timestamp.Format(time.RFC3339),

@@ -1,210 +1,164 @@
 package logger
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/godbus/dbus/v5"
+	"github.com/pebbe/zmq4"
+	"io"
 	"net/http"
 	"strings"
-
-	"github.com/pebbe/zmq4"
 )
 
-// Notifier define o contrato para envio de log a destinos externos.
-// Adicionalmente, inclui um método para definir um token de autenticação.
 type Notifier interface {
-	Notify(entry *LogEntry)
-	SetAuthToken(token string)
+	Notify(entry *LogEntry) error
+	Enable()
+	Disable()
+	Enabled() bool
+
+	WebServer() *http.Server
+	Websocket() *zmq4.Socket
+	WebClient() *http.Client
+	DBusClient() *dbus.Conn
+
+	ReturnURL(returnURL *string) string
+	HttpMethod(httpMethod *string) string
+	LogLevel(loglevel *string) string
+	WsEndpoint(wsEndpoint *string) string
+	WebhookURL(webhookURL *string) string
+	AuthToken(authToken *string) string
+	Whitelist(whiteList []string) []string
+}
+type NotifierImpl struct {
+	VlNotifierManager NotifierManager
+	VlEnabled         bool     `json:"enabled"`
+	VlReturnURL       string   `json:"returnURL"`
+	VlWebhookURL      string   `json:"webhookURL"`
+	VlHttpMethod      string   `json:"httpMethod"`
+	VlAuthToken       string   `json:"authToken"`
+	VlLogLevel        string   `json:"logLevel"`
+	VlWsEndpoint      string   `json:"wsEndpoint"`
+	VlWhitelist       []string `json:"whitelist"`
 }
 
-// =============================
-// ExternalNotifier
-// =============================
-
-// ExternalNotifier envia logs via HTTP e via socket ZMQ simples.
-type ExternalNotifier struct {
-	externalURL string
-	zmqSocket   *zmq4.Socket
-	authToken   string
+func NewNotifier(manager NotifierManager, enabled bool, webhookURL, httpMethod, authToken, logLevel, wsEndpoint string, whitelist []string) Notifier {
+	if whitelist == nil {
+		whitelist = make([]string, 0)
+	}
+	notifier := NotifierImpl{
+		VlNotifierManager: manager,
+		VlEnabled:         enabled,
+		VlWebhookURL:      webhookURL,
+		VlHttpMethod:      httpMethod,
+		VlAuthToken:       authToken,
+		VlLogLevel:        logLevel,
+		VlWsEndpoint:      wsEndpoint,
+		VlWhitelist:       whitelist,
+	}
+	return &notifier
 }
 
-// NewExternalNotifier cria uma nova instância de ExternalNotifier.
-func NewExternalNotifier(url string, zmqEndpoint string) *ExternalNotifier {
-	var socket *zmq4.Socket
-	if zmqEndpoint != "" {
-		var err error
-		socket, err = zmq4.NewSocket(zmq4.PUSH)
-		if err != nil {
-			fmt.Printf("Erro ao criar socket ZMQ: %v\n", err)
-		} else {
-			if err := socket.Connect(zmqEndpoint); err != nil {
+func (n *NotifierImpl) Notify(entry *LogEntry) error {
+	if n.VlEnabled {
+		if n.VlLogLevel != "" {
+			if n.VlLogLevel != string(entry.Level) {
 				return nil
 			}
 		}
-	}
-	return &ExternalNotifier{
-		externalURL: url,
-		zmqSocket:   socket,
-	}
-}
+		if n.VlWebhookURL != "" {
+			if n.VlHttpMethod == "POST" {
+				bodyObj, err := http.NewRequest("POST", n.VlWebhookURL, strings.NewReader(entry.Message))
+				if err != nil {
+					return err
+				}
+				if n.VlAuthToken != "" {
+					bodyObj.Header.Set("Authorization", "Bearer "+n.VlAuthToken)
+				}
+				bodyObj.Header.Set("Content-Type", "application/json")
+				resp, err := n.WebClient().Do(bodyObj)
+				if err != nil {
+					return err
+				}
+				defer func(Body io.ReadCloser) {
+					_ = Body.Close()
+				}(resp.Body)
 
-// SetAuthToken define o token de autenticação para as requisições.
-func (n *ExternalNotifier) SetAuthToken(token string) {
-	n.authToken = token
-}
-
-// Notify envia o log via HTTP (caso externalURL esteja configurada) e via ZMQ.
-func (n *ExternalNotifier) Notify(entry *LogEntry) {
-	// Envio via HTTP.
-	if n.externalURL != "" {
-		data, _ := json.Marshal(entry)
-		req, err := http.NewRequest("POST", n.externalURL, strings.NewReader(string(data)))
-		if err == nil {
-			// Se houver token, define o header de Autorização.
-			if n.authToken != "" {
-				req.Header.Set("Authorization", "Bearer "+n.authToken)
-			}
-			req.Header.Set("Content-Type", "application/json")
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				fmt.Printf("Erro ao enviar log para %s: %v\n", n.externalURL, err)
+				if resp.StatusCode != http.StatusOK {
+					return fmt.Errorf("erro ao enviar log para %s: %s", n.VlWebhookURL, resp.Status)
+				}
 			} else {
-				resp.Body.Close()
+				return fmt.Errorf("método HTTP inválido: %s", n.VlHttpMethod)
 			}
 		}
-	}
-	// Envio via ZMQ.
-	if n.zmqSocket != nil {
-		data, _ := json.Marshal(entry)
-		message := string(data)
-		if n.authToken != "" {
-			// Exemplo: concatenar o token no início, separado por "|".
-			message = n.authToken + "|" + message
+		if n.VlWsEndpoint != "" {
+			if n.VlAuthToken != "" {
+				message := n.VlAuthToken + "|" + entry.Message
+				if _, err := n.Websocket().Send(message, 0); err != nil {
+					return err
+				}
+			} else {
+				if _, err := n.Websocket().Send(entry.Message, 0); err != nil {
+					return err
+				}
+			}
 		}
-		if _, err := n.zmqSocket.Send(message, 0); err != nil {
-			fmt.Printf("Erro ao enviar log para ZMQ: %v\n", err)
-			return
+		if n.DBusClient() != nil {
+			output := fmt.Sprintf("DBusNotifier: sending log [%s]", entry.Message)
+			if n.VlAuthToken != "" {
+				output = n.VlAuthToken + "|" + output
+			}
+			dbusObj := n.DBusClient().Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
+			dbusObj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0), "", output, []string{}, map[string]dbus.Variant{}, int32(5000))
 		}
 	}
+	return nil
 }
+func (n *NotifierImpl) Enable()                 { n.VlEnabled = true }
+func (n *NotifierImpl) Disable()                { n.VlEnabled = false }
+func (n *NotifierImpl) Enabled() bool           { return n.VlEnabled }
+func (n *NotifierImpl) WebServer() *http.Server { return n.VlNotifierManager.WebServer(nil) }
+func (n *NotifierImpl) Websocket() *zmq4.Socket { return n.VlNotifierManager.Websocket(nil) }
+func (n *NotifierImpl) WebClient() *http.Client { return n.VlNotifierManager.WebClient(nil) }
+func (n *NotifierImpl) DBusClient() *dbus.Conn  { return n.VlNotifierManager.DBusClient(nil) }
 
-// =============================
-// DBusNotifier
-// =============================
-
-// DBusNotifier envia logs de forma passiva via DBus.
-type DBusNotifier struct {
-	enabled   bool
-	authToken string
-	// Aqui você pode incluir campos para gerenciar uma conexão DBus real.
-}
-
-// NewDBusNotifier cria uma nova instância de DBusNotifier.
-func NewDBusNotifier() *DBusNotifier {
-	return &DBusNotifier{
-		enabled: false,
+func (n *NotifierImpl) ReturnURL(returnURL *string) string {
+	if returnURL != nil {
+		n.VlReturnURL = *returnURL
 	}
+	return n.VlReturnURL
 }
-
-// SetAuthToken define o token de autenticação (caso seja necessário).
-func (d *DBusNotifier) SetAuthToken(token string) {
-	d.authToken = token
-}
-
-// Enable ativa o envio de logs via DBus.
-func (d *DBusNotifier) Enable() {
-	d.enabled = true
-	fmt.Println("DBusNotifier enabled.")
-}
-
-// Disable desativa o envio de logs via DBus.
-func (d *DBusNotifier) Disable() {
-	d.enabled = false
-	fmt.Println("DBusNotifier disabled.")
-}
-
-// Notify envia o log via DBus, se estiver habilitado.
-// A implementação real da API DBus deve ser inserida aqui.
-func (d *DBusNotifier) Notify(entry *LogEntry) {
-	if !d.enabled {
-		return
+func (n *NotifierImpl) HttpMethod(httpMethod *string) string {
+	if httpMethod != nil {
+		n.VlHttpMethod = *httpMethod
 	}
-	// Exemplo: formata a mensagem com token, se presente.
-	output := fmt.Sprintf("DBusNotifier: sending log [%s]", entry.Message)
-	if d.authToken != "" {
-		output = d.authToken + "|" + output
-	}
-	fmt.Println(output)
+	return n.VlHttpMethod
 }
-
-// =============================
-// ZMQSecNotifier
-// =============================
-
-// ZMQSecNotifier envia logs de forma segura via ZeroMQ, utilizando autenticação por JWT.
-// Este notifier é dedicado à conexão com o broker gkbxsrv e não pode ser desativado se o broker estiver presente.
-type ZMQSecNotifier struct {
-	enabled        bool
-	zmqSocket      *zmq4.Socket
-	authToken      string // Gerenciado por métodos exclusivos; não exposto para edição externa.
-	privateKeyPath string
-	certPath       string
-	configPath     string
+func (n *NotifierImpl) LogLevel(loglevel *string) string {
+	if loglevel != nil {
+		n.VlLogLevel = *loglevel
+	}
+	return n.VlLogLevel
 }
-
-// NewZMQSecNotifier cria uma nova instância de ZMQSecNotifier.
-// A conexão é estabelecida automaticamente com o broker (por exemplo, "tcp://localhost:5555").
-func NewZMQSecNotifier(zmqEndpoint, privateKeyPath, certPath, configPath string) *ZMQSecNotifier {
-	socket, err := zmq4.NewSocket(zmq4.PUSH)
-	if err != nil {
-		fmt.Printf("Erro ao criar socket seguro ZMQ: %v\n", err)
-		return nil
+func (n *NotifierImpl) WsEndpoint(wsEndpoint *string) string {
+	if wsEndpoint != nil {
+		n.VlWsEndpoint = *wsEndpoint
 	}
-	// Neste exemplo, a conexão é forçada ao broker local.
-	if err := socket.Connect(zmqEndpoint); err != nil {
-		fmt.Printf("Erro ao conectar socket seguro ZMQ: %v\n", err)
-		return nil
-	}
-	return &ZMQSecNotifier{
-		enabled:        true, // Conexão incondicional se o gkbxsrv estiver presente.
-		zmqSocket:      socket,
-		privateKeyPath: privateKeyPath,
-		certPath:       certPath,
-		configPath:     configPath,
-	}
+	return n.VlWsEndpoint
 }
-
-// SetAuthToken armazena o token de autenticação para uso interno.
-func (z *ZMQSecNotifier) SetAuthToken(token string) {
-	z.authToken = token
-}
-
-// Enable registra que o notificator está ativado. Para o ZMQSecNotifier, a ativação é incondicional.
-func (z *ZMQSecNotifier) Enable() {
-	// Essa conexão não pode ser desativada se o gkbxsrv estiver presente.
-	z.enabled = true
-	fmt.Println("ZMQSecNotifier enabled (non-negotiable).")
-}
-
-// Disable não deve permitir desativar o notificator se o broker local estiver presente.
-func (z *ZMQSecNotifier) Disable() {
-	fmt.Println("ZMQSecNotifier cannot be disabled because gkbxsrv is present on this host.")
-	// Opcionalmente, mantenha enabled = true mesmo se esse método for chamado.
-	z.enabled = true
-}
-
-// Notify envia o log de forma segura via ZMQ, utilizando o token se disponível.
-// Aqui, a geração/validação do JWT já deve ser feita externamente; este método apenas gerencia o token.
-func (z *ZMQSecNotifier) Notify(entry *LogEntry) {
-	if !z.enabled {
-		return
+func (n *NotifierImpl) WebhookURL(webhookURL *string) string {
+	if webhookURL != nil {
+		n.VlWebhookURL = *webhookURL
 	}
-	data, _ := json.Marshal(entry)
-	message := string(data)
-	if z.authToken != "" {
-		message = z.authToken + "|" + message
+	return n.VlWebhookURL
+}
+func (n *NotifierImpl) AuthToken(authToken *string) string {
+	if authToken != nil {
+		n.VlAuthToken = *authToken
 	}
-	if _, err := z.zmqSocket.Send(message, 0); err != nil {
-		fmt.Printf("Erro ao enviar log via ZMQ seguro: %v\n", err)
-		return
+	return n.VlAuthToken
+}
+func (n *NotifierImpl) Whitelist(whiteList []string) []string {
+	if whiteList != nil {
+		n.VlWhitelist = whiteList
 	}
+	return n.VlWhitelist
 }
