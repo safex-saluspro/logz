@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"github.com/faelmori/logz/internal/services"
 	"github.com/godbus/dbus/v5"
 	"github.com/pebbe/zmq4"
 	"net/http"
@@ -15,10 +16,10 @@ var (
 )
 
 type NotifierManager interface {
-	WebServer(webServer *http.Server) *http.Server
-	Websocket(websocket *zmq4.Socket) *zmq4.Socket
-	WebClient(webClient *http.Client) *http.Client
-	DBusClient(dBusClient *dbus.Conn) *dbus.Conn
+	WebServer() *http.Server
+	Websocket() *zmq4.Socket
+	WebClient() *http.Client
+	DBusClient() *dbus.Conn
 
 	AddNotifier(name string, notifier Notifier)
 	RemoveNotifier(name string)
@@ -68,39 +69,27 @@ func (nm *NotifierManagerImpl) ListNotifiers() []string {
 	return keys
 }
 
-func (nm *NotifierManagerImpl) WebServer(webServer *http.Server) *http.Server {
-	if webServer != nil {
-		lServer = webServer
-		nm.webServer = webServer
-	} else if nm.webServer == nil {
-		nm.webServer = lServer
+func (nm *NotifierManagerImpl) WebServer() *http.Server {
+	if nm.webServer == nil {
+		nm.webServer = services.Server()
 	}
 	return nm.webServer
 }
-func (nm *NotifierManagerImpl) Websocket(websocket *zmq4.Socket) *zmq4.Socket {
-	if websocket != nil {
-		lSocket = websocket
-		nm.websocket = websocket
-	} else if nm.websocket == nil {
-		nm.websocket = lSocket
+func (nm *NotifierManagerImpl) Websocket() *zmq4.Socket {
+	if nm.websocket == nil {
+		nm.websocket = services.Socket()
 	}
 	return nm.websocket
 }
-func (nm *NotifierManagerImpl) WebClient(webClient *http.Client) *http.Client {
-	if webClient != nil {
-		lClient = webClient
-		nm.webClient = webClient
-	} else if nm.webClient == nil {
-		nm.webClient = lClient
+func (nm *NotifierManagerImpl) WebClient() *http.Client {
+	if nm.webClient == nil {
+		nm.webClient = services.Client()
 	}
 	return nm.webClient
 }
-func (nm *NotifierManagerImpl) DBusClient(dBusClient *dbus.Conn) *dbus.Conn {
-	if dBusClient != nil {
-		lDBus = dBusClient
-		nm.dbusClient = dBusClient
-	} else if nm.dbusClient == nil {
-		nm.dbusClient = lDBus
+func (nm *NotifierManagerImpl) DBusClient() *dbus.Conn {
+	if nm.dbusClient == nil {
+		nm.dbusClient = services.DBus()
 	}
 	return nm.dbusClient
 }

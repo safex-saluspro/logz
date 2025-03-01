@@ -23,7 +23,6 @@ func MetricsCmd() *cobra.Command {
 
 	return cmd
 }
-
 func enableMetricsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "enable",
@@ -35,7 +34,6 @@ func enableMetricsCmd() *cobra.Command {
 		},
 	}
 }
-
 func disableMetricsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "disable",
@@ -47,7 +45,6 @@ func disableMetricsCmd() *cobra.Command {
 		},
 	}
 }
-
 func addMetricCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "add [name] [value]",
@@ -66,7 +63,6 @@ func addMetricCmd() *cobra.Command {
 		},
 	}
 }
-
 func removeMetricCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "remove [name]",
@@ -80,7 +76,6 @@ func removeMetricCmd() *cobra.Command {
 		},
 	}
 }
-
 func listMetricsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
@@ -100,7 +95,6 @@ func listMetricsCmd() *cobra.Command {
 		},
 	}
 }
-
 func watchMetricsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "watch",

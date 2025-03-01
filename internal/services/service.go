@@ -3,6 +3,9 @@ package services
 import (
 	"errors"
 	"fmt"
+	"github.com/godbus/dbus/v5"
+	"github.com/pebbe/zmq4"
+
 	//"github.com/prometheus/client_golang/prometheus"
 	// github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
@@ -20,6 +23,9 @@ import (
 
 var (
 	lSrv      *http.Server
+	lClient   *http.Client
+	lSocket   *zmq4.Socket
+	lDBus     *dbus.Conn
 	startTime = time.Now()
 )
 
@@ -72,7 +78,7 @@ func Start(port string) error {
 	if vpr == nil {
 		return errors.New("viper not initialized")
 	}
-	cmd := exec.Command(os.Args[0], "service-run", viper.ConfigFileUsed())
+	cmd := exec.Command(os.Args[0], "service", "spawn", "-c", viper.ConfigFileUsed())
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -89,14 +95,14 @@ func Start(port string) error {
 		_ = file.Close()
 	}(file)
 
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if fLockErr := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); fLockErr != nil {
 		return errors.New("another process is writing to the PID file")
 	}
 
 	pid := cmd.Process.Pid
 	pidData := fmt.Sprintf("%d\n%s", pid, port)
-	if _, err := file.Write([]byte(pidData)); err != nil {
-		return fmt.Errorf("failed to write PID data: %w", err)
+	if _, writeErr := file.Write([]byte(pidData)); writeErr != nil {
+		return fmt.Errorf("failed to write PID data: %w", writeErr)
 	}
 	fmt.Printf("Service started with pid %d\n", pid)
 	return nil
@@ -147,6 +153,28 @@ func GetServiceInfo() (int, string, string, error) {
 	}
 
 	return pid, port, pidPath, nil
+}
+
+func Server() *http.Server {
+	return lSrv
+}
+func Client() *http.Client {
+	if lClient == nil {
+		lClient = &http.Client{}
+	}
+	return lClient
+}
+func Socket() *zmq4.Socket {
+	if lSocket == nil {
+		lSocket, _ = zmq4.NewSocket(zmq4.PUB)
+	}
+	return lSocket
+}
+func DBus() *dbus.Conn {
+	if lDBus == nil {
+		lDBus, _ = dbus.SystemBus()
+	}
+	return lDBus
 }
 
 func registerHandlers(mux *http.ServeMux) error {

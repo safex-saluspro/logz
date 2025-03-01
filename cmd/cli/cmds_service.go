@@ -14,6 +14,7 @@ func ServiceCmd() *cobra.Command {
 	cmd.AddCommand(startServiceCmd())
 	cmd.AddCommand(stopServiceCmd())
 	cmd.AddCommand(getServiceCmd())
+	cmd.AddCommand(spawnServiceCmd())
 	return cmd
 }
 
@@ -33,7 +34,6 @@ func startServiceCmd() *cobra.Command {
 	startCmd.Flags().StringVarP(&port, "port", "p", "9999", "Port to listen on")
 	return startCmd
 }
-
 func stopServiceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
@@ -45,7 +45,6 @@ func stopServiceCmd() *cobra.Command {
 		},
 	}
 }
-
 func getServiceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
@@ -60,4 +59,19 @@ func getServiceCmd() *cobra.Command {
 			}
 		},
 	}
+}
+func spawnServiceCmd() *cobra.Command {
+	var configPath string
+	spCmd := &cobra.Command{
+		Use:    "spawn",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := services.Run(); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	spCmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to the service configuration file")
+	return spCmd
 }

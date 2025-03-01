@@ -115,10 +115,10 @@ func (n *NotifierImpl) Notify(entry *LogEntry) error {
 func (n *NotifierImpl) Enable()                 { n.VlEnabled = true }
 func (n *NotifierImpl) Disable()                { n.VlEnabled = false }
 func (n *NotifierImpl) Enabled() bool           { return n.VlEnabled }
-func (n *NotifierImpl) WebServer() *http.Server { return n.VlNotifierManager.WebServer(nil) }
-func (n *NotifierImpl) Websocket() *zmq4.Socket { return n.VlNotifierManager.Websocket(nil) }
-func (n *NotifierImpl) WebClient() *http.Client { return n.VlNotifierManager.WebClient(nil) }
-func (n *NotifierImpl) DBusClient() *dbus.Conn  { return n.VlNotifierManager.DBusClient(nil) }
+func (n *NotifierImpl) WebServer() *http.Server { return n.VlNotifierManager.WebServer() }
+func (n *NotifierImpl) Websocket() *zmq4.Socket { return n.VlNotifierManager.Websocket() }
+func (n *NotifierImpl) WebClient() *http.Client { return n.VlNotifierManager.WebClient() }
+func (n *NotifierImpl) DBusClient() *dbus.Conn  { return n.VlNotifierManager.DBusClient() }
 
 func (n *NotifierImpl) ReturnURL(returnURL *string) string {
 	if returnURL != nil {

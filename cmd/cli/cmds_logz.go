@@ -33,17 +33,14 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 		Aliases: aliases,
 		Short:   "Loga uma mensagem de nível " + level,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Cria o Logger usando os parâmetros fornecidos.
 			logr := logger.NewLogger(parseLogLevel(level), format, outputPath)
 			for k, v := range metaData {
 				logr.SetMetadata(k, v)
 			}
-			// Converte o contexto de string para map[string]interface{}
 			ctxInterface := make(map[string]interface{})
 			for k, v := range ctx {
 				ctxInterface[k] = v
 			}
-			// Chama o método de log conforme o nível informado.
 			switch level {
 			case "debug":
 				logr.Debug(msg, ctxInterface)
