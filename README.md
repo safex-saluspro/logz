@@ -144,5 +144,4 @@ Contributions are welcome! Feel free to open issues or submit pull requests. Che
 💌 **Developer**:  
 [Rafael Mori](mailto:faelmori@gmail.com)
 💼 [Follow me on GitHub](https://github.com/faelmori)
-🌐 [LinkedIn](https://www.linkedin.com/in/rafael-mori-b7025516/)
 I'm open to new work opportunities and collaborations. If you find this project interesting, don’t hesitate to reach out!
