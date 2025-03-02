@@ -14,6 +14,14 @@ type LogMode string
 type LogFormat string
 
 const (
+	JSON LogFormat = "json"
+	TEXT LogFormat = "text"
+	YAML LogFormat = "yaml"
+	XML  LogFormat = "xml"
+	RAW  LogFormat = "raw"
+)
+
+const (
 	ModeService    LogMode = "service"    // Indicates that the logger is being used by a detached process
 	ModeStandalone LogMode = "standalone" // Indicates that the logger is being used locally (e.g., CLI)
 )
@@ -175,6 +183,13 @@ func (l *LogzCoreImpl) Error(msg string, ctx map[string]interface{}) { l.log(ERR
 
 // FatalC logs a fatal message with context and terminates the process.
 func (l *LogzCoreImpl) FatalC(msg string, ctx map[string]interface{}) { l.log(FATAL, msg, ctx) }
+
+func (l *LogzCoreImpl) SetLevel(level LogLevel)    { l.level = level }
+func (l *LogzCoreImpl) GetLevel() LogLevel         { return l.level }
+func (l *LogzCoreImpl) SetWriter(writer LogWriter) { l.writer = writer }
+func (l *LogzCoreImpl) GetWriter() LogWriter       { return l.writer }
+func (l *LogzCoreImpl) SetConfig(config Config)    { l.config = config }
+func (l *LogzCoreImpl) GetConfig() Config          { return l.config }
 
 // getCallerInfo returns the caller information for the log entry.
 func getCallerInfo(skip int) string {

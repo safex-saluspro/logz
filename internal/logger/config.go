@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -33,9 +34,9 @@ type Config interface {
 	NotifierManager() NotifierManager
 	Mode() LogMode
 	Level() string
-	SetLevel(level string)
+	SetLevel(level LogLevel)
 	Format() string
-	SetFormat(format string)
+	SetFormat(LogFormat LogFormat)
 	GetInt(key string, value int) int
 }
 
@@ -64,10 +65,10 @@ func (c *ConfigImpl) WriteTimeout() time.Duration      { return c.VlWriteTimeout
 func (c *ConfigImpl) IdleTimeout() time.Duration       { return c.VlIdleTimeout }
 func (c *ConfigImpl) NotifierManager() NotifierManager { return c.VlNotifierManager }
 func (c *ConfigImpl) Mode() LogMode                    { return c.VlMode }
-func (c *ConfigImpl) Level() string                    { return string(c.VlLevel) }
-func (c *ConfigImpl) SetLevel(level string)            { c.VlLevel = LogLevel(level) }
-func (c *ConfigImpl) Format() string                   { return string(c.VlFormat) }
-func (c *ConfigImpl) SetFormat(format string)          { c.VlFormat = LogFormat(format) }
+func (c *ConfigImpl) Level() string                    { return strings.ToUpper(string(c.VlLevel)) }
+func (c *ConfigImpl) SetLevel(level LogLevel)          { c.VlLevel = level }
+func (c *ConfigImpl) Format() string                   { return strings.ToLower(string(c.VlFormat)) }
+func (c *ConfigImpl) SetFormat(format LogFormat)       { c.VlFormat = format }
 func (c *ConfigImpl) Output() string {
 	if c.VlOutput != "" {
 		return c.VlOutput
@@ -220,7 +221,7 @@ func (cm *ConfigManagerImpl) Output() string {
 	return logPath
 }
 
-func (cm *ConfigManagerImpl) SetLevel(level string) {
+func (cm *ConfigManagerImpl) SetLevel(level LogLevel) {
 	if cm.config != nil {
 		cm.config.SetLevel(level)
 	} else {
@@ -234,7 +235,7 @@ func (cm *ConfigManagerImpl) SetLevel(level string) {
 	}
 }
 
-func (cm *ConfigManagerImpl) SetFormat(format string) {
+func (cm *ConfigManagerImpl) SetFormat(format LogFormat) {
 	if cm.config != nil {
 		cm.config.SetFormat(format)
 	} else {

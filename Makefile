@@ -1,5 +1,5 @@
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-BINARY_NAME := $(ROOT_DIR)logz
+BINARY_NAME := $(ROOT_DIR)loggz
 CMD_DIR := $(ROOT_DIR)cmd
 INSTALL_SCRIPT=$(ROOT_DIR)scripts/install.sh
 ARGS :=
