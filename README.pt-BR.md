@@ -1,4 +1,7 @@
-# **Logz** 🚀
+![Logz Banner](./assets/top_banner.png)
+
+---
+
 **Uma ferramenta de gerenciamento de logs e métricas avançada, com suporte nativo à integração com Prometheus, notificações dinâmicas e uma CLI poderosa.**
 
 ---
@@ -8,8 +11,8 @@
 2. [Destaques](#destaques)
 3. [Instalação](#instalação)
 4. [Uso](#uso)
-  - [CLI](#cli)
-  - [Configuração](#configuração)
+    - [CLI](#cli)
+    - [Configuração](#configuração)
 5. [Integração com Prometheus](#integração-com-prometheus)
 6. [Roadmap](#roadmap)
 7. [Contribuições](#contribuições)

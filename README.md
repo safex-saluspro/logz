@@ -1,4 +1,7 @@
-# **Logz** 🚀
+![Logz Banner](./assets/top_banner.png)
+
+---
+
 **An advanced logging and metrics management tool with native support for Prometheus integration, dynamic notifications, and a powerful CLI.**
 
 ---
