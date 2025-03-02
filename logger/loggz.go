@@ -126,7 +126,7 @@ func (l *logzLogger) SetMetadata(key string, value interface{}) {
 }
 
 // NewLogger creates a new instance of logzLogger with an optional prefix.
-func NewLogger(prefix *string) LogzLogger {
+func NewLogger(prefix string) LogzLogger {
 	configManager := logger.NewConfigManager()
 	if configManager == nil {
 		fmt.Println("Error initializing ConfigManager.")
@@ -142,12 +142,7 @@ func NewLogger(prefix *string) LogzLogger {
 	return &logzLogger{
 		logger: log.New(
 			os.Stdout,
-			func() string {
-				if prefix != nil {
-					return *prefix
-				}
-				return ""
-			}(),
+			prefix,
 			log.LstdFlags,
 		),
 		coreLogger: logr,
