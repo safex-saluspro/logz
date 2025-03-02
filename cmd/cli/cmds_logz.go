@@ -32,7 +32,7 @@ func LogzCmds() []*cobra.Command {
 func newLogCmd(level string, aliases []string) *cobra.Command {
 	var metaData, ctx map[string]string
 	var msg, output, format string
-
+	
 	cmd := &cobra.Command{
 		Use:     level,
 		Aliases: aliases,
@@ -55,7 +55,7 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 			}
 
 			if format != "" {
-				config.SetFormat(format)
+				config.SetFormat(logger.LogFormat(format))
 			}
 
 			if output != "" {

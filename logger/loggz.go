@@ -21,6 +21,18 @@ type LogzCore interface {
 	Error(msg string, ctx map[string]interface{})
 	// FatalC logs a fatal message with context and exits the application.
 	FatalC(msg string, ctx map[string]interface{})
+	// GetLevel returns the current log level.
+	GetLevel() logger.LogLevel
+	// SetLevel sets the log level.
+	SetLevel(level logger.LogLevel)
+	// GetWriter returns the current writer.
+	GetWriter() logger.LogWriter
+	// SetWriter sets the writer.
+	SetWriter(writer logger.LogWriter)
+	// GetConfig returns the current configuration.
+	GetConfig() logger.Config
+	// SetConfig sets the configuration.
+	SetConfig(config logger.Config)
 }
 
 // LogzLogger combines the existing logger with the standard Go log methods.
@@ -124,6 +136,24 @@ func (l *logzLogger) FatalC(msg string, ctx map[string]interface{}) {
 func (l *logzLogger) SetMetadata(key string, value interface{}) {
 	l.coreLogger.SetMetadata(key, value)
 }
+
+// GetLevel returns the current log level.
+func (l *logzLogger) GetLevel() logger.LogLevel { return l.coreLogger.GetLevel() }
+
+// SetLevel sets the log level.
+func (l *logzLogger) SetLevel(level logger.LogLevel) { l.coreLogger.SetLevel(level) }
+
+// GetWriter returns the current writer.
+func (l *logzLogger) GetWriter() logger.LogWriter { return l.coreLogger.GetWriter() }
+
+// SetWriter sets the writer.
+func (l *logzLogger) SetWriter(writer logger.LogWriter) { l.coreLogger.SetWriter(writer) }
+
+// GetConfig returns the current configuration.
+func (l *logzLogger) GetConfig() logger.Config { return l.coreLogger.GetConfig() }
+
+// SetConfig sets the configuration.
+func (l *logzLogger) SetConfig(config logger.Config) { l.coreLogger.SetConfig(config) }
 
 // NewLogger creates a new instance of logzLogger with an optional prefix.
 func NewLogger(prefix string) LogzLogger {
