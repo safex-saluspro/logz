@@ -10,25 +10,25 @@ import (
 	"time"
 )
 
-// LogReader define o contrato para leitura de logs.
+// LogReader defines the contract for reading logs.
 type LogReader interface {
-	// Tail lê o arquivo de log em tempo real e envia as novas linhas para o
-	// writer passado ou imprime-as no terminal. A operação pode ser interrompida
-	// enviando um sinal através do canal stopChan.
+	// Tail reads the log file in real-time and sends the new lines to the
+	// provided writer or prints them to the terminal. The operation can be interrupted
+	// by sending a signal through the stopChan channel.
 	Tail(filePath string, stopChan <-chan struct{}) error
 }
 
-// FileLogReader implementa a interface LogReader lendo de um arquivo.
+// FileLogReader implements the LogReader interface by reading from a file.
 type FileLogReader struct {
-	// pollInterval é o intervalo de polling para verificar novas linhas.
+	// pollInterval is the polling interval to check for new lines.
 	pollInterval time.Duration
 }
 
-// NewFileLogReader cria uma nova instância de FileLogReader.
-// O intervalo de polling é lido da variável de ambiente LOGZ_TAIL_POLL_INTERVAL (em milissegundos),
-// ou usa 500ms por padrão.
+// NewFileLogReader creates a new instance of FileLogReader.
+// The polling interval is read from the LOGZ_TAIL_POLL_INTERVAL environment variable (in milliseconds),
+// or defaults to 500ms.
 func NewFileLogReader() *FileLogReader {
-	intervalMs := 500 // padrão em milissegundos
+	intervalMs := 500 // default in milliseconds
 	if val := os.Getenv("LOGZ_TAIL_POLL_INTERVAL"); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
 			intervalMs = parsed
@@ -41,17 +41,17 @@ func NewFileLogReader() *FileLogReader {
 	}
 }
 
-// Tail segue o arquivo de log a partir do fim e imprime as novas linhas conforme elas são adicionadas.
-// O canal stopChan permite interromper a operação (por exemplo, via Ctrl+C).
+// Tail follows the log file from the end and prints new lines as they are added.
+// The stopChan channel allows interrupting the operation (e.g., via Ctrl+C).
 func (fr *FileLogReader) Tail(filePath string, stopChan <-chan struct{}) error {
-	// Abre o arquivo de log
+	// Open the log file
 	f, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %w", err)
 	}
 	defer f.Close()
 
-	// Posiciona o ponteiro no final do arquivo para ler apenas novas linhas
+	// Position the pointer at the end of the file to read only new lines
 	_, err = f.Seek(0, io.SeekEnd)
 	if err != nil {
 		return fmt.Errorf("failed to seek to the end of the file: %w", err)
@@ -59,7 +59,7 @@ func (fr *FileLogReader) Tail(filePath string, stopChan <-chan struct{}) error {
 
 	reader := bufio.NewReader(f)
 
-	// Loop principal para ler linhas novas
+	// Main loop to read new lines
 	for {
 		select {
 		case <-stopChan:
@@ -74,7 +74,7 @@ func (fr *FileLogReader) Tail(filePath string, stopChan <-chan struct{}) error {
 				}
 				return fmt.Errorf("error reading log file: %w", err)
 			}
-			// Imprime a linha imediatamente; pode ser adaptado para enviar para outro canal se necessário.
+			// Print the line immediately; can be adapted to send to another channel if needed.
 			fmt.Print(line)
 		}
 	}

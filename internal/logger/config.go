@@ -18,6 +18,7 @@ const (
 	defaultMode        = ModeStandalone
 )
 
+// Config interface defines the methods to access configuration settings.
 type Config interface {
 	Port() string
 	BindAddress() string
@@ -32,6 +33,8 @@ type Config interface {
 	Level() string
 	Format() string
 }
+
+// ConfigImpl implements the Config interface and holds the configuration values.
 type ConfigImpl struct {
 	VlLevel           LogLevel
 	VlFormat          LogFormat
@@ -54,23 +57,50 @@ func (c *ConfigImpl) PidFile() string                  { return c.VlPidFile }
 func (c *ConfigImpl) ReadTimeout() time.Duration       { return c.VlReadTimeout }
 func (c *ConfigImpl) WriteTimeout() time.Duration      { return c.VlWriteTimeout }
 func (c *ConfigImpl) IdleTimeout() time.Duration       { return c.VlIdleTimeout }
-func (c *ConfigImpl) DefaultLogPath() string           { return c.VlDefaultLogPath }
 func (c *ConfigImpl) NotifierManager() NotifierManager { return c.VlNotifierManager }
 func (c *ConfigImpl) Mode() LogMode                    { return c.VlMode }
 func (c *ConfigImpl) Level() string                    { return string(c.VlLevel) }
 func (c *ConfigImpl) Format() string                   { return string(c.VlFormat) }
+func (c *ConfigImpl) DefaultLogPath() string {
+	home, homeErr := os.UserHomeDir()
+	if homeErr != nil {
+		home, homeErr = os.UserConfigDir()
+		if homeErr != nil {
+			home, homeErr = os.UserCacheDir()
+			if homeErr != nil {
+				home = "/tmp"
+			}
+		}
+	}
+	logPath := filepath.Join(home, ".kubex", "logz", "logz.log")
+	if mkdirErr := os.MkdirAll(filepath.Dir(logPath), 0755); mkdirErr != nil && !os.IsExist(mkdirErr) {
+		return ""
+	}
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		if _, createErr := os.Create(logPath); createErr != nil {
+			return ""
+		}
+	}
+	return logPath
+}
 
+// ConfigManager interface defines methods to manage configuration.
 type ConfigManager interface {
 	GetConfig() Config
 	GetPidPath() string
 	GetConfigPath() string
+	DefaultLogPath() string
 	LoadConfig() (Config, error)
 }
+
+// ConfigManagerImpl implements the ConfigManager interface.
 type ConfigManagerImpl struct {
 	config Config
 }
 
 func (cm *ConfigManagerImpl) GetConfig() Config { return cm.config }
+
+// GetPidPath returns the path to the PID file.
 func (cm *ConfigManagerImpl) GetPidPath() string {
 	cacheDir, cacheDirErr := os.UserCacheDir()
 	if cacheDirErr != nil {
@@ -82,6 +112,8 @@ func (cm *ConfigManagerImpl) GetPidPath() string {
 	}
 	return cacheDir
 }
+
+// GetConfigPath returns the path to the configuration file.
 func (cm *ConfigManagerImpl) GetConfigPath() string {
 	home, homeErr := os.UserHomeDir()
 	if homeErr != nil {
@@ -99,6 +131,32 @@ func (cm *ConfigManagerImpl) GetConfigPath() string {
 	}
 	return configPath
 }
+
+// DefaultLogPath returns the path to the configuration file.
+func (cm *ConfigManagerImpl) DefaultLogPath() string {
+	home, homeErr := os.UserHomeDir()
+	if homeErr != nil {
+		home, homeErr = os.UserConfigDir()
+		if homeErr != nil {
+			home, homeErr = os.UserCacheDir()
+			if homeErr != nil {
+				home = "/tmp"
+			}
+		}
+	}
+	logPath := filepath.Join(home, ".kubex", "logz", "logz.log")
+	if mkdirErr := os.MkdirAll(filepath.Dir(logPath), 0755); mkdirErr != nil && !os.IsExist(mkdirErr) {
+		return ""
+	}
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		if _, createErr := os.Create(logPath); createErr != nil {
+			return ""
+		}
+	}
+	return logPath
+}
+
+// LoadConfig loads the configuration from the file and returns a Config instance.
 func (cm *ConfigManagerImpl) LoadConfig() (Config, error) {
 	configPath := cm.GetConfigPath()
 	if err := ensureConfigExists(configPath); err != nil {
@@ -116,7 +174,6 @@ func (cm *ConfigManagerImpl) LoadConfig() (Config, error) {
 		return nil, fmt.Errorf("failed to create notifier manager")
 	}
 
-	// Construir o Config com valores do arquivo ou padrões
 	mode := LogMode(viperObj.GetString("mode"))
 	if mode != ModeService && mode != ModeStandalone {
 		mode = defaultMode
@@ -131,7 +188,7 @@ func (cm *ConfigManagerImpl) LoadConfig() (Config, error) {
 		VlWriteTimeout:    viperObj.GetDuration("writeTimeout"),
 		VlIdleTimeout:     viperObj.GetDuration("idleTimeout"),
 		VlDefaultLogPath:  getOrDefault(viperObj.GetString("defaultLogPath"), defaultLogPath),
-		VlNotifierManager: *notifierManager,
+		VlNotifierManager: notifierManager,
 		VlMode:            mode,
 	}
 
@@ -139,18 +196,19 @@ func (cm *ConfigManagerImpl) LoadConfig() (Config, error) {
 
 	viperObj.WatchConfig()
 	viperObj.OnConfigChange(func(e fsnotify.Event) {
-		log.Printf("Configuração alterada: %s", e.Name)
-		// Atualizar Config dinamicamente, se necessário
+		log.Printf("Configuration changed: %s", e.Name)
+		// Update Config dynamically, if necessary
 	})
 
 	return cm.config, nil
 }
 
+// NewConfigManager creates a new instance of ConfigManager.
 func NewConfigManager() *ConfigManager {
 	cfgMgr := &ConfigManagerImpl{}
 
 	if cfg, err := cfgMgr.LoadConfig(); err != nil || cfg == nil {
-		log.Printf("Erro ao carregar configuração: %v\n", err)
+		log.Printf("Error loading configuration: %v\n", err)
 		return nil
 	}
 
@@ -160,9 +218,10 @@ func NewConfigManager() *ConfigManager {
 	return &cfgM
 }
 
+// ensureConfigExists checks if the configuration file exists, and creates it with default values if it does not.
 func ensureConfigExists(configPath string) error {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// Gera uma configuração padrão
+		// Generate a default configuration
 		defaultConfig := ConfigImpl{
 			VlPort:            defaultPort,
 			VlBindAddress:     defaultBindAddress,
@@ -172,7 +231,7 @@ func ensureConfigExists(configPath string) error {
 			VlWriteTimeout:    15 * time.Second,
 			VlIdleTimeout:     60 * time.Second,
 			VlDefaultLogPath:  defaultLogPath,
-			VlNotifierManager: *NewNotifierManager(nil),
+			VlNotifierManager: NewNotifierManager(nil),
 			VlMode:            defaultMode,
 		}
 		data, _ := json.MarshalIndent(defaultConfig, "", "  ")
@@ -182,6 +241,8 @@ func ensureConfigExists(configPath string) error {
 	}
 	return nil
 }
+
+// getOrDefault returns the value if it is not empty, otherwise returns the default value.
 func getOrDefault(value, defaultValue string) string {
 	if value == "" {
 		return defaultValue

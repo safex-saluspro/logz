@@ -2,18 +2,20 @@ package logger
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 )
 
-// RegEx válida para nomes de métricas conforme as regras do Prometheus.
+// Regular expression to validate metric names
 var metricNameRegex = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
 
-// validateMetricName assegura que o nome da métrica esteja correto.
+// validateMetricName checks if the given metric name is valid according to the Prometheus naming conventions.
 func validateMetricName(name string) error {
 	if !metricNameRegex.MatchString(name) {
 		return fmt.Errorf("invalid metric name '%s': must match [a-zA-Z_:][a-zA-Z0-9_:]*", name)
@@ -21,39 +23,58 @@ func validateMetricName(name string) error {
 	return nil
 }
 
-// Metric representa uma métrica com seu valor e metadados associados.
+// Metric represents a single Prometheus metric with a value and optional metadata.
 type Metric struct {
 	Value    float64           `json:"value"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// PrometheusManager gerencia todas as métricas expostas e a sua persistência.
+// PrometheusManager manages Prometheus metrics, including enabling/disabling the HTTP server,
+// loading/saving metrics, and handling metric operations.
 type PrometheusManager struct {
 	enabled         bool
 	metrics         map[string]Metric
 	mutex           sync.RWMutex
-	metricsFile     string          // caminho do arquivo de persistência
-	exportWhitelist map[string]bool // Se não vazio, apenas estas métricas serão exportadas para Prometheus
+	metricsFile     string          // path to the persistence file
+	exportWhitelist map[string]bool // If not empty, only these metrics will be exported to Prometheus
+	httpServer      *http.Server    // HTTP server to expose metrics
 }
 
-// Instância singleton do PrometheusManager.
+// Singleton instance of PrometheusManager
 var prometheusManagerInstance *PrometheusManager
 
-// getMetricsFilePath define o caminho para o arquivo de métricas.
+// getMetricsFilePath returns the path to the metrics persistence file, using an environment variable if set,
+// or a default location in the user's cache directory.
 func getMetricsFilePath() string {
 	if envPath := os.Getenv("LOGZ_METRICS_FILE"); envPath != "" {
 		return envPath
 	}
-	home, err := os.UserCacheDir()
+	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		home = "/tmp"
+		cacheDir = "/tmp"
 	}
-	dir := filepath.Join(home, "kubex", "logz")
+	dir := filepath.Join(cacheDir, "kubex", "logz")
 	_ = os.MkdirAll(dir, 0755)
 	return filepath.Join(dir, "metrics.json")
 }
 
-// loadMetrics carrega as métricas persistidas, se existirem.
+// GetPrometheusManager returns the singleton instance of PrometheusManager, initializing it if necessary.
+func GetPrometheusManager() *PrometheusManager {
+	if prometheusManagerInstance == nil {
+		prometheusManagerInstance = &PrometheusManager{
+			enabled:         false,
+			metrics:         make(map[string]Metric),
+			metricsFile:     getMetricsFilePath(),
+			exportWhitelist: make(map[string]bool),
+		}
+		if err := prometheusManagerInstance.loadMetrics(); err != nil {
+			fmt.Printf("Warning: could not load metrics: %v\n", err)
+		}
+	}
+	return prometheusManagerInstance
+}
+
+// loadMetrics loads metrics from the persistence file into the PrometheusManager instance.
 func (pm *PrometheusManager) loadMetrics() error {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
@@ -73,7 +94,7 @@ func (pm *PrometheusManager) loadMetrics() error {
 	return nil
 }
 
-// saveMetrics persiste as métricas atuais no arquivo definido.
+// saveMetrics saves the current metrics to the persistence file.
 func (pm *PrometheusManager) saveMetrics() error {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
@@ -84,26 +105,71 @@ func (pm *PrometheusManager) saveMetrics() error {
 	return os.WriteFile(pm.metricsFile, data, 0644)
 }
 
-// GetPrometheusManager retorna a instância singleton do PrometheusManager.
-func GetPrometheusManager() *PrometheusManager {
-	if prometheusManagerInstance == nil {
-		prometheusManagerInstance = &PrometheusManager{
-			enabled:         false,
-			metrics:         make(map[string]Metric),
-			metricsFile:     getMetricsFilePath(),
-			exportWhitelist: make(map[string]bool),
-		}
-		if err := prometheusManagerInstance.loadMetrics(); err != nil {
-			fmt.Printf("Warning: could not load metrics: %v\n", err)
-		}
-		if os.Getenv("LOGZ_PROMETHEUS_ENABLED") == "true" {
-			prometheusManagerInstance.enabled = true
-		}
+// Enable starts the Prometheus HTTP server on the specified port to expose metrics.
+func (pm *PrometheusManager) Enable(port string) {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+	if pm.enabled {
+		fmt.Println("Prometheus metrics are already enabled.")
+		return
 	}
-	return prometheusManagerInstance
+	pm.enabled = true
+
+	// Start the HTTP server to expose metrics
+	mux := http.NewServeMux()
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		metrics := pm.GetMetrics()
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		for name, value := range metrics {
+			_, fPrintFErr := fmt.Fprintf(w, "# TYPE %s gauge\n%s %f\n", name, name, value)
+			if fPrintFErr != nil {
+				return
+			}
+		}
+	})
+	pm.httpServer = &http.Server{
+		Addr:    fmt.Sprintf(":%s", port),
+		Handler: mux,
+	}
+	go func() {
+		if err := pm.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Printf("Error starting Prometheus metrics server: %v\n", err)
+		}
+	}()
+	fmt.Println("Prometheus metrics enabled.")
 }
 
-// SetExportWhitelist permite que o cliente defina quais métricas devem ser exportadas para Prometheus.
+// Disable stops the Prometheus HTTP server and disables metric exposure.
+func (pm *PrometheusManager) Disable() {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+	if !pm.enabled {
+		fmt.Println("Prometheus metrics are already disabled.")
+		return
+	}
+	pm.enabled = false
+	if pm.httpServer != nil {
+		_ = pm.httpServer.Close()
+	}
+	fmt.Println("Prometheus metrics disabled.")
+}
+
+// GetMetrics returns the current metrics, filtered by the export whitelist if defined.
+func (pm *PrometheusManager) GetMetrics() map[string]float64 {
+	pm.mutex.RLock()
+	defer pm.mutex.RUnlock()
+	filteredMetrics := make(map[string]float64)
+	for name, metric := range pm.metrics {
+		// Respect the exportWhitelist, if defined
+		if len(pm.exportWhitelist) > 0 && !pm.exportWhitelist[name] {
+			continue
+		}
+		filteredMetrics[name] = metric.Value
+	}
+	return filteredMetrics
+}
+
+// SetExportWhitelist sets the list of metrics that are allowed to be exported to Prometheus.
 func (pm *PrometheusManager) SetExportWhitelist(metrics []string) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
@@ -114,38 +180,14 @@ func (pm *PrometheusManager) SetExportWhitelist(metrics []string) {
 	fmt.Println("Export whitelist updated for Prometheus metrics.")
 }
 
-// Enable ativa a funcionalidade de métricas.
-func (pm *PrometheusManager) Enable() {
-	pm.mutex.Lock()
-	defer pm.mutex.Unlock()
-	if pm.enabled {
-		fmt.Println("Prometheus metrics are already enabled.")
-		return
-	}
-	pm.enabled = true
-	fmt.Println("Prometheus metrics enabled.")
-}
-
-// Disable desativa a funcionalidade Prometheus.
-func (pm *PrometheusManager) Disable() {
-	pm.mutex.Lock()
-	defer pm.mutex.Unlock()
-	if !pm.enabled {
-		fmt.Println("Prometheus metrics are already disabled.")
-		return
-	}
-	pm.enabled = false
-	fmt.Println("Prometheus metrics disabled.")
-}
-
-// IsEnabled retorna se as métricas estão habilitadas.
+// IsEnabled returns whether the Prometheus metrics exposure is enabled.
 func (pm *PrometheusManager) IsEnabled() bool {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
 	return pm.enabled
 }
 
-// AddMetric adiciona ou atualiza uma métrica com o valor e metadados fornecidos.
+// AddMetric adds or updates a metric with the given name, value, and metadata.
 func (pm *PrometheusManager) AddMetric(name string, value float64, metadata map[string]string) {
 	if err := validateMetricName(name); err != nil {
 		fmt.Printf("Error adding metric: %v\n", err)
@@ -163,7 +205,7 @@ func (pm *PrometheusManager) AddMetric(name string, value float64, metadata map[
 	}
 }
 
-// RemoveMetric remove uma métrica pelo nome.
+// RemoveMetric removes a metric with the given name.
 func (pm *PrometheusManager) RemoveMetric(name string) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
@@ -174,7 +216,7 @@ func (pm *PrometheusManager) RemoveMetric(name string) {
 	}
 }
 
-// IncrementMetric incrementa a métrica especificada em delta; cria a métrica se necessário.
+// IncrementMetric increments the value of a metric by the given delta.
 func (pm *PrometheusManager) IncrementMetric(name string, delta float64) {
 	if err := validateMetricName(name); err != nil {
 		fmt.Printf("Error incrementing metric: %v\n", err)
@@ -194,7 +236,7 @@ func (pm *PrometheusManager) IncrementMetric(name string, delta float64) {
 	}
 }
 
-// ListMetrics exibe todas as métricas registradas, incluindo metadados se houver.
+// ListMetrics prints all registered metrics to the console.
 func (pm *PrometheusManager) ListMetrics() {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
@@ -213,63 +255,76 @@ func (pm *PrometheusManager) ListMetrics() {
 	}
 }
 
-// GetMetrics retorna uma cópia das métricas no formato {metric_name: value}, aplicando o filtro de exportWhitelist se definido.
-func (pm *PrometheusManager) GetMetrics() map[string]float64 {
-	pm.mutex.RLock()
-	defer pm.mutex.RUnlock()
-	copiedMetrics := make(map[string]float64, len(pm.metrics))
-	for k, metric := range pm.metrics {
-		// Se o whitelist estiver definido (não vazio), exportar apenas os itens nele contidos.
-		if len(pm.exportWhitelist) > 0 {
-			if !pm.exportWhitelist[k] {
-				continue
-			}
-		}
-		copiedMetrics[k] = metric.Value
-	}
-	return copiedMetrics
-}
-
-// setPrometheusSysConfig configura o Prometheus para coletar métricas do Logz.
+// setPrometheusSysConfig configures the Prometheus system to scrape metrics from this application.
 func (pm *PrometheusManager) setPrometheusSysConfig() error {
+	// Logz specific configuration for Prometheus
 	prometheusConfig := `
 scrape_configs:
   - job_name: 'logz'
-	static_configs:
-	  - targets: ['localhost:2112']
+    static_configs:
+      - targets: ['localhost:2112']
 `
-	// Verifica se o arquivo de configuração do Prometheus existe.
-	ptmCheckConfigExistsCmd := exec.Command("type", "-f", "/etc/prometheus/prometheus.yml")
-	ptmCheckConfigExistsErr := ptmCheckConfigExistsCmd.Run()
-	if ptmCheckConfigExistsErr != nil {
-		// Se não existir, cria o arquivo de configuração do Prometheus e insere as configurações necessárias.
-		ptmCreateConfigCmd := exec.Command("echo", prometheusConfig, ">", "/etc/prometheus/prometheus.yml")
-		ptmCreateConfigErr := ptmCreateConfigCmd.Run()
-		if ptmCreateConfigErr != nil {
-			return ptmCreateConfigErr
+
+	configFilePath := "/etc/prometheus/prometheus.yml"
+
+	// Check if the configuration file exists
+	_, err := os.Stat(configFilePath)
+	if os.IsNotExist(err) {
+		// Create the configuration file if it does not exist
+		if err := os.WriteFile(configFilePath, []byte(prometheusConfig), 0644); err != nil {
+			return fmt.Errorf("failed to create Prometheus configuration file: %w", err)
+		}
+		fmt.Println("Prometheus configuration file created successfully.")
+	} else if err == nil {
+		// Check if there is already a configuration for 'logz'
+		configContent, readErr := os.ReadFile(configFilePath)
+		if readErr != nil {
+			return fmt.Errorf("failed to read Prometheus configuration file: %w", readErr)
+		}
+
+		if strings.Contains(string(configContent), "job_name: 'logz'") {
+			fmt.Println("Prometheus configuration for 'logz' already exists.")
+		} else {
+			// Add the configuration to the existing file
+			f, openErr := os.OpenFile(configFilePath, os.O_APPEND|os.O_WRONLY, 0644)
+			if openErr != nil {
+				return fmt.Errorf("failed to open Prometheus configuration file: %w", openErr)
+			}
+			defer func(f *os.File) {
+				_ = f.Close()
+			}(f)
+
+			if _, writeErr := f.WriteString(prometheusConfig); writeErr != nil {
+				return fmt.Errorf("failed to append to Prometheus configuration file: %w", writeErr)
+			}
+			fmt.Println("Prometheus configuration for 'logz' added successfully.")
 		}
 	} else {
-		// Se existir, verifica se as configurações necessárias estão presentes.
-		ptmCheckConfigCmd := exec.Command("grep", "logz", "/etc/prometheus/prometheus.yml")
-		ptmCheckConfigErr := ptmCheckConfigCmd.Run()
-		if ptmCheckConfigErr != nil {
-			// Se não estiverem, insere as configurações necessárias.
-			ptmInsertConfigCmd := exec.Command("echo", prometheusConfig, ">>", "/etc/prometheus/prometheus.yml")
-			ptmInsertConfigErr := ptmInsertConfigCmd.Run()
-			if ptmInsertConfigErr != nil {
-				return ptmInsertConfigErr
-			}
-		}
+		return fmt.Errorf("failed to check Prometheus configuration file: %w", err)
 	}
+
 	return nil
 }
 
-// initPrometheus inicializa o PrometheusManager e registra as métricas padrão.
+// initPrometheus initializes the Prometheus metrics and system configuration.
 func (pm *PrometheusManager) initPrometheus() error {
-	//setPrometheuzConfigErr := setPrometheuzConfig()
-	//if setPrometheuzConfigErr != nil {
-	//	return setPrometheuzConfigErr
-	//}
-	//prometheus.MustRegister(infoCount, warnCount, errorCount, debugCount, successCount)
+	if !pm.IsEnabled() {
+		return fmt.Errorf("prometheus is not enabled")
+	}
+
+	defaultMetrics := []string{"infoCount", "warnCount", "errorCount", "debugCount", "successCount"}
+	for _, metric := range defaultMetrics {
+		if err := validateMetricName(metric); err != nil {
+			fmt.Printf("Error initializing metric '%s': %v\n", metric, err)
+			continue
+		}
+		pm.AddMetric(metric, 0, nil) // Initialize with value 0 and no metadata
+	}
+
+	if err := pm.setPrometheusSysConfig(); err != nil {
+		return fmt.Errorf("failed to configure Prometheus system: %w", err)
+	}
+
+	fmt.Println("Prometheus initialized successfully with default metrics.")
 	return nil
 }

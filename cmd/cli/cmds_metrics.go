@@ -24,15 +24,18 @@ func MetricsCmd() *cobra.Command {
 	return cmd
 }
 func enableMetricsCmd() *cobra.Command {
-	return &cobra.Command{
+	var port string
+	enMCmd := &cobra.Command{
 		Use:     "enable",
 		Aliases: []string{"en"},
 		Short:   "Enable Prometheus integration",
 		Run: func(cmd *cobra.Command, args []string) {
 			pm := logger.GetPrometheusManager()
-			pm.Enable()
+			pm.Enable(port)
 		},
 	}
+	enMCmd.Flags().StringVarP(&port, "port", "p", "2112", "Port to expose Prometheus metrics")
+	return enMCmd
 }
 func disableMetricsCmd() *cobra.Command {
 	return &cobra.Command{
