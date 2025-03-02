@@ -121,6 +121,12 @@ func (l *LogzCoreImpl) log(level LogLevel, msg string, ctx map[string]interface{
 		entry.AddMetadata(k, v)
 	}
 
+	// Merge global and local metadata
+	finalMetadata := mergeMetadata(l.metadata, ctx)
+	for k, v := range finalMetadata {
+		entry.AddMetadata(k, v)
+	}
+
 	// Write the log using the configured writer
 	if err := l.writer.Write(entry); err != nil {
 		log.Printf("Error writing log: %v", err)
@@ -191,6 +197,18 @@ func trimFilePath(filePath string) string {
 
 // mergeContext merges global and local context maps.
 func mergeContext(global, local map[string]interface{}) map[string]interface{} {
+	merged := make(map[string]interface{})
+	for k, v := range global {
+		merged[k] = v
+	}
+	for k, v := range local {
+		merged[k] = v
+	}
+	return merged
+}
+
+// mergeMetadata merges global and local context maps.
+func mergeMetadata(global, local map[string]interface{}) map[string]interface{} {
 	merged := make(map[string]interface{})
 	for k, v := range global {
 		merged[k] = v

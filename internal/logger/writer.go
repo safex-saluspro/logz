@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -68,13 +69,24 @@ func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
 		levelStr = color + string(entry.Level) + reset
 	}
 
+	contextMsg := ""
+	if entry.Context != "" {
+		contextMsg = fmt.Sprintf("(Context: %s)", entry.Context)
+	}
+
+	metadata := ""
+	if len(entry.Metadata) > 0 {
+		metadata = fmt.Sprintf("%s(%s)", strings.Repeat(" ", len(entry.Timestamp.Format(time.RFC3339))+3), formatMetadata(entry.Metadata))
+	}
+
 	// The formatting includes timestamp, icon, level, message, and context.
-	return fmt.Sprintf("[%s] %s %s - %s (%s)",
+	return fmt.Sprintf("[%s] %s %s - %s %s\n%s",
 		entry.Timestamp.Format(time.RFC3339),
 		icon,
 		levelStr,
 		entry.Message,
-		entry.Context,
+		contextMsg,
+		metadata,
 	), nil
 }
 
@@ -105,4 +117,15 @@ func (w *DefaultWriter) Write(entry *LogEntry) error {
 	}
 	_, err = fmt.Fprintln(w.out, formatted)
 	return err
+}
+
+func formatMetadata(metadata map[string]interface{}) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
