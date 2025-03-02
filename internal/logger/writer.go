@@ -9,15 +9,15 @@ import (
 	"time"
 )
 
-// LogFormatter define o contrato para formatação de entradas de log.
+// LogFormatter defines the contract for formatting log entries.
 type LogFormatter interface {
 	Format(entry *LogEntry) (string, error)
 }
 
-// JSONFormatter formata o log no padrão JSON.
+// JSONFormatter formats the log in JSON format.
 type JSONFormatter struct{}
 
-// Format converte a entrada de log para JSON.
+// Format converts the log entry to JSON.
 func (f *JSONFormatter) Format(entry *LogEntry) (string, error) {
 	data, err := json.Marshal(entry)
 	if err != nil {
@@ -26,12 +26,12 @@ func (f *JSONFormatter) Format(entry *LogEntry) (string, error) {
 	return string(data), nil
 }
 
-// TextFormatter formata o log em texto simples.
+// TextFormatter formats the log in plain text.
 type TextFormatter struct{}
 
-// Format converte a entrada de log para uma string formatada com cores e ícones.
+// Format converts the log entry to a formatted string with colors and icons.
 func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
-	// Se a variável LOGZ_NO_COLOR está definida ou se estamos em Windows, desliga cores.
+	// If the LOGZ_NO_COLOR variable is set or if we are on Windows, disable colors.
 	noColor := os.Getenv("LOGZ_NO_COLOR") != "" || runtime.GOOS == "windows"
 
 	var icon, levelStr, reset string
@@ -40,22 +40,22 @@ func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
 		levelStr = string(entry.Level)
 		reset = ""
 	} else {
-		// Define o "reset" ANSI
+		// Define the ANSI "reset"
 		reset = "\033[0m"
 		var color string
-		// Escolhe cor e ícone conforme o nível
+		// Choose color and icon according to the level
 		switch entry.Level {
 		case DEBUG:
-			color = "\033[34m" // azul
+			color = "\033[34m" // blue
 			icon = "🐛"
 		case INFO:
-			color = "\033[32m" // verde
+			color = "\033[32m" // green
 			icon = "ℹ️"
 		case WARN:
-			color = "\033[33m" // amarelo
+			color = "\033[33m" // yellow
 			icon = "⚠️"
 		case ERROR:
-			color = "\033[31m" // vermelho
+			color = "\033[31m" // red
 			icon = "❌"
 		case FATAL:
 			color = "\033[35m" // magenta
@@ -68,7 +68,7 @@ func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
 		levelStr = color + string(entry.Level) + reset
 	}
 
-	// A formatação inclui timestamp, ícone, nível, mensagem e contexto.
+	// The formatting includes timestamp, icon, level, message, and context.
 	return fmt.Sprintf("[%s] %s %s - %s (%s)",
 		entry.Timestamp.Format(time.RFC3339),
 		icon,
@@ -78,18 +78,18 @@ func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
 	), nil
 }
 
-// LogWriter define o contrato para escrita de log.
+// LogWriter defines the contract for writing logs.
 type LogWriter interface {
 	Write(entry *LogEntry) error
 }
 
-// DefaultWriter implementa LogWriter utilizando um io.Writer e um LogFormatter.
+// DefaultWriter implements LogWriter using an io.Writer and a LogFormatter.
 type DefaultWriter struct {
 	out       io.Writer
 	formatter LogFormatter
 }
 
-// NewDefaultWriter cria uma nova instância de DefaultWriter.
+// NewDefaultWriter creates a new instance of DefaultWriter.
 func NewDefaultWriter(out io.Writer, formatter LogFormatter) *DefaultWriter {
 	return &DefaultWriter{
 		out:       out,
@@ -97,7 +97,7 @@ func NewDefaultWriter(out io.Writer, formatter LogFormatter) *DefaultWriter {
 	}
 }
 
-// Write formata a entrada e a escreve no destino configurado.
+// Write formats the entry and writes it to the configured destination.
 func (w *DefaultWriter) Write(entry *LogEntry) error {
 	formatted, err := w.formatter.Format(entry)
 	if err != nil {

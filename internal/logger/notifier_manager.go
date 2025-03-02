@@ -8,20 +8,31 @@ import (
 	"net/http"
 )
 
+// NotifierManager defines the interface for managing notifiers.
 type NotifierManager interface {
+	// WebServer returns the HTTP server instance.
 	WebServer() *http.Server
+	// Websocket returns the ZMQ socket instance.
 	Websocket() *zmq4.Socket
+	// WebClient returns the HTTP client instance.
 	WebClient() *http.Client
+	// DBusClient returns the DBus connection instance.
 	DBusClient() *dbus.Conn
 
+	// AddNotifier adds or updates a notifier with the given name.
 	AddNotifier(name string, notifier Notifier)
+	// RemoveNotifier removes the notifier with the given name.
 	RemoveNotifier(name string)
+	// GetNotifier retrieves the notifier with the given name.
 	GetNotifier(name string) (Notifier, bool)
+	// ListNotifiers lists all registered notifier names.
 	ListNotifiers() []string
 
-	UpdateFromConfig(config Config) error // Atualiza os notifiers dinamicamente com base no Config
+	// UpdateFromConfig updates notifiers dynamically based on the provided configuration.
+	UpdateFromConfig() error
 }
 
+// NotifierManagerImpl is the implementation of the NotifierManager interface.
 type NotifierManagerImpl struct {
 	webServer  *http.Server
 	websocket  *zmq4.Socket
@@ -30,6 +41,7 @@ type NotifierManagerImpl struct {
 	notifiers  map[string]Notifier
 }
 
+// NewNotifierManager creates a new instance of NotifierManagerImpl.
 func NewNotifierManager(notifiers map[string]Notifier) NotifierManager {
 	if notifiers == nil {
 		notifiers = make(map[string]Notifier)
@@ -39,21 +51,25 @@ func NewNotifierManager(notifiers map[string]Notifier) NotifierManager {
 	}
 }
 
+// AddNotifier adds or updates a notifier with the given name.
 func (nm *NotifierManagerImpl) AddNotifier(name string, notifier Notifier) {
 	nm.notifiers[name] = notifier
 	fmt.Printf("Notifier '%s' added/updated.\n", name)
 }
 
+// RemoveNotifier removes the notifier with the given name.
 func (nm *NotifierManagerImpl) RemoveNotifier(name string) {
 	delete(nm.notifiers, name)
 	fmt.Printf("Notifier '%s' removed.\n", name)
 }
 
+// GetNotifier retrieves the notifier with the given name.
 func (nm *NotifierManagerImpl) GetNotifier(name string) (Notifier, bool) {
 	notifier, ok := nm.notifiers[name]
 	return notifier, ok
 }
 
+// ListNotifiers lists all registered notifier names.
 func (nm *NotifierManagerImpl) ListNotifiers() []string {
 	keys := make([]string, 0, len(nm.notifiers))
 	for name := range nm.notifiers {
@@ -62,13 +78,14 @@ func (nm *NotifierManagerImpl) ListNotifiers() []string {
 	return keys
 }
 
-func (nm *NotifierManagerImpl) UpdateFromConfig(config Config) error {
+// UpdateFromConfig updates notifiers dynamically based on the provided configuration.
+func (nm *NotifierManagerImpl) UpdateFromConfig() error {
 	var configNotifiers map[string]map[string]interface{}
 	if err := viper.UnmarshalKey("notifiers", &configNotifiers); err != nil {
 		return fmt.Errorf("failed to parse notifiers config: %w", err)
 	}
 
-	// Atualiza ou recria os notifiers dinamicamente
+	// Update or recreate notifiers dynamically
 	for name, conf := range configNotifiers {
 		typ, ok := conf["type"].(string)
 		if !ok {
@@ -96,6 +113,7 @@ func (nm *NotifierManagerImpl) UpdateFromConfig(config Config) error {
 	return nil
 }
 
+// WebServer returns the HTTP server instance.
 func (nm *NotifierManagerImpl) WebServer() *http.Server {
 	if nm.webServer == nil {
 		nm.webServer = Server()
@@ -103,6 +121,7 @@ func (nm *NotifierManagerImpl) WebServer() *http.Server {
 	return nm.webServer
 }
 
+// Websocket returns the ZMQ socket instance.
 func (nm *NotifierManagerImpl) Websocket() *zmq4.Socket {
 	if nm.websocket == nil {
 		nm.websocket = Socket()
@@ -110,6 +129,7 @@ func (nm *NotifierManagerImpl) Websocket() *zmq4.Socket {
 	return nm.websocket
 }
 
+// WebClient returns the HTTP client instance.
 func (nm *NotifierManagerImpl) WebClient() *http.Client {
 	if nm.webClient == nil {
 		nm.webClient = Client()
@@ -117,6 +137,7 @@ func (nm *NotifierManagerImpl) WebClient() *http.Client {
 	return nm.webClient
 }
 
+// DBusClient returns the DBus connection instance.
 func (nm *NotifierManagerImpl) DBusClient() *dbus.Conn {
 	if nm.dbusClient == nil {
 		nm.dbusClient = DBus()

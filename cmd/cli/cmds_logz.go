@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -21,6 +22,9 @@ func LogzCmds() []*cobra.Command {
 		watchLogsCmd(),
 		startServiceCmd(),
 		stopServiceCmd(),
+		rotateLogsCmd(),
+		checkLogSizeCmd(),
+		archiveLogsCmd(),
 	}
 }
 
@@ -79,6 +83,82 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 	return cmd
 }
 
+// rotateLogsCmd permite rotacionar logs manualmente.
+func rotateLogsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "rotate",
+		Short: "Rotaciona os logs que excederem o tamanho configurado",
+		Run: func(cmd *cobra.Command, args []string) {
+			configManager := logger.NewConfigManager()
+			if configManager == nil {
+				fmt.Println("Erro ao inicializar ConfigManager.")
+				return
+			}
+			cfgMgr := *configManager
+
+			config, err := cfgMgr.LoadConfig()
+			if err != nil {
+				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				return
+			}
+
+			err = logger.CheckLogSize(config)
+			if err != nil {
+				fmt.Printf("Erro ao rotacionar logs: %v\n", err)
+			} else {
+				fmt.Println("Logs rotacionados com sucesso!")
+			}
+		},
+	}
+}
+
+// checkLogSizeCmd verifica o tamanho atual dos logs.
+func checkLogSizeCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "check-size",
+		Short: "Verifica o tamanho dos logs sem realizar ações",
+		Run: func(cmd *cobra.Command, args []string) {
+			configManager := logger.NewConfigManager()
+			if configManager == nil {
+				fmt.Println("Erro ao inicializar ConfigManager.")
+				return
+			}
+			cfgMgr := *configManager
+
+			config, err := cfgMgr.LoadConfig()
+			if err != nil {
+				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				return
+			}
+
+			logDir := config.DefaultLogPath()
+			logSize, err := logger.GetLogDirectorySize(filepath.Dir(logDir)) // Adicione esta função ao logger
+			if err != nil {
+				fmt.Printf("Erro ao calcular o tamanho dos logs: %v\n", err)
+				return
+			}
+
+			fmt.Printf("O tamanho total dos logs no diretório '%s' é: %d bytes\n", filepath.Dir(logDir), logSize)
+		},
+	}
+}
+
+// archiveLogsCmd permite arquivar logs manualmente.
+func archiveLogsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "archive",
+		Short: "Arquiva manualmente todos os logs",
+		Run: func(cmd *cobra.Command, args []string) {
+			err := logger.ArchiveLogs(nil)
+			if err != nil {
+				fmt.Printf("Erro ao arquivar logs: %v\n", err)
+			} else {
+				fmt.Println("Logs arquivados com sucesso!")
+			}
+		},
+	}
+}
+
 // watchLogsCmd monitora logs em tempo real.
 func watchLogsCmd() *cobra.Command {
 	return &cobra.Command{
@@ -119,23 +199,5 @@ func watchLogsCmd() *cobra.Command {
 			// Aguarda um pequeno delay para finalizar
 			time.Sleep(500 * time.Millisecond)
 		},
-	}
-}
-
-// parseLogLevel mapeia o nível de log para o enum correspondente.
-func parseLogLevel(level string) logger.LogLevel {
-	switch level {
-	case "debug":
-		return logger.DEBUG
-	case "info":
-		return logger.INFO
-	case "warn":
-		return logger.WARN
-	case "error":
-		return logger.ERROR
-	case "fatal":
-		return logger.FATAL
-	default:
-		return logger.INFO
 	}
 }

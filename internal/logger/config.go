@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -32,6 +33,7 @@ type Config interface {
 	Mode() LogMode
 	Level() string
 	Format() string
+	GetInt(key string, value int) int
 }
 
 // ConfigImpl implements the Config interface and holds the configuration values.
@@ -82,6 +84,24 @@ func (c *ConfigImpl) DefaultLogPath() string {
 		}
 	}
 	return logPath
+}
+func (c *ConfigImpl) GetInt(key string, defaultValue int) int {
+	viperInstance := viper.GetViper()
+
+	// Primeiro tenta buscar via Viper, se disponível
+	if viperInstance != nil {
+		// Obtém o valor como string para lidar com chaves configuradas em diferentes formatos
+		rawValue := viperInstance.GetString(key)
+		if rawValue != "" {
+			parsedVal, err := strconv.Atoi(rawValue) // Converte o valor para inteiro
+			if err == nil {
+				return parsedVal
+			}
+		}
+	}
+
+	// Caso não encontre ou a conversão falhe, retorna o valor padrão
+	return defaultValue
 }
 
 // ConfigManager interface defines methods to manage configuration.

@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	// pidFile is the name of the PID file used to track the running service.
 	pidFile = "logz_srv.pid"
 )
 
@@ -30,19 +31,20 @@ var (
 	lClient      *http.Client
 	lSocket      *zmq4.Socket
 	lDBus        *dbus.Conn
-	globalLogger *Logger // Logger global para o serviço
+	globalLogger *Logger // Global logger for the service
 	startTime    = time.Now()
 )
 
+// Run starts the logging service.
 func Run() error {
-	// Verifica se já há um serviço rodando para evitar múltiplas instâncias
+	// Check if the service is already running to avoid multiple instances
 	if IsRunning() {
 		if stopErr := shutdown(); stopErr != nil {
 			return stopErr
 		}
 	}
 
-	// Inicializa o ConfigManager e carrega a configuração
+	// Initialize the ConfigManager and load the configuration
 	configManager := NewConfigManager()
 	if configManager == nil {
 		return errors.New("failed to initialize config manager")
@@ -54,10 +56,10 @@ func Run() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Inicializa o Logger global com a configuração
+	// Initialize the global logger with the configuration
 	initializeGlobalLogger(config)
 
-	// Configura o servidor HTTP
+	// Set up the HTTP server
 	mux := http.NewServeMux()
 	if err := registerHandlers(mux); err != nil {
 		return err
@@ -71,7 +73,7 @@ func Run() error {
 		IdleTimeout:  config.IdleTimeout(),
 	}
 
-	// Inicia o servidor HTTP
+	// Start the HTTP server
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -84,12 +86,14 @@ func Run() error {
 	<-stop
 	return shutdown()
 }
+
+// Start initiates the logging service on the specified port.
 func Start(port string) error {
 	if IsRunning() {
 		return errors.New("service already running (pid file exists: " + getPidPath() + ")")
 	}
 
-	// Usa o Viper para carregar configuração de execução
+	// Use Viper to load runtime configuration
 	vpr := viper.GetViper()
 	if vpr == nil {
 		return errors.New("viper not initialized")
@@ -122,6 +126,8 @@ func Start(port string) error {
 	globalLogger.Info(fmt.Sprintf("Service started with pid %d", pid), nil)
 	return nil
 }
+
+// Stop terminates the running logging service.
 func Stop() error {
 	pid, port, pidPath, err := GetServiceInfo()
 	if err != nil {
@@ -146,21 +152,28 @@ func Stop() error {
 	return nil
 }
 
+// Server returns the HTTP server instance.
 func Server() *http.Server {
 	return lSrv
 }
+
+// Client returns the HTTP client instance.
 func Client() *http.Client {
 	if lClient == nil {
 		lClient = &http.Client{}
 	}
 	return lClient
 }
+
+// Socket returns the ZMQ socket instance.
 func Socket() *zmq4.Socket {
 	if lSocket == nil {
 		lSocket, _ = zmq4.NewSocket(zmq4.PUB)
 	}
 	return lSocket
 }
+
+// DBus returns the DBus connection instance.
 func DBus() *dbus.Conn {
 	if lDBus == nil {
 		lDBus, _ = dbus.SystemBus()
@@ -168,6 +181,7 @@ func DBus() *dbus.Conn {
 	return lDBus
 }
 
+// getPidPath returns the path to the PID file.
 func getPidPath() string {
 	if envPath := os.Getenv("LOGZ_PID_PATH"); envPath != "" {
 		return envPath
@@ -183,10 +197,13 @@ func getPidPath() string {
 	return cacheDir
 }
 
+// IsRunning checks if the service is currently running.
 func IsRunning() bool {
 	_, err := os.Stat(getPidPath())
 	return err == nil
 }
+
+// GetServiceInfo retrieves the PID, port, and PID file path of the running service.
 func GetServiceInfo() (int, string, string, error) {
 	pidPath := getPidPath()
 
@@ -208,6 +225,8 @@ func GetServiceInfo() (int, string, string, error) {
 
 	return pid, port, pidPath, nil
 }
+
+// registerHandlers registers HTTP handlers for the service.
 func registerHandlers(mux *http.ServeMux) error {
 	integrations := viper.GetStringMap("integrations")
 	if integrations == nil {
@@ -230,13 +249,15 @@ func registerHandlers(mux *http.ServeMux) error {
 
 	return nil
 }
+
+// callbackHandler handles incoming callback requests.
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Limita o tamanho do payload para evitar abusos
+	// Limit the payload size to prevent abuse
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 	var payload map[string]interface{}
@@ -254,12 +275,16 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"success","message":"Callback processed"}`))
 }
+
+// healthHandler handles health check requests.
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	uptime := time.Since(startTime).String()
 	response := fmt.Sprintf("OK\nUptime: %s\n", uptime)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(response))
 }
+
+// metricsHandler handles metrics requests.
 func metricsHandler(w http.ResponseWriter, _ *http.Request) {
 	pm := GetPrometheusManager()
 	if !pm.IsEnabled() {
@@ -280,12 +305,16 @@ func metricsHandler(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 }
+
+// loggingMiddleware logs incoming HTTP requests.
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request for %s from %s\n", r.Method, r.URL.Path, r.RemoteAddr)
 		next.ServeHTTP(w, r)
 	})
 }
+
+// shutdown gracefully shuts down the service.
 func shutdown() error {
 	globalLogger.Info("Shutting down service gracefully...", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -300,6 +329,7 @@ func shutdown() error {
 	return nil
 }
 
+// initializeGlobalLogger initializes the global logger with the provided configuration.
 func initializeGlobalLogger(config Config) {
 	if globalLogger == nil {
 		globalLogger = NewLogger(config)
