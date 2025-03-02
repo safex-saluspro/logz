@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/godbus/dbus/v5"
 	"github.com/pebbe/zmq4"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
