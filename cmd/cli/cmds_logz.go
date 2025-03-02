@@ -36,7 +36,10 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     level,
 		Aliases: aliases,
-		Short:   "Logs a " + level + " level message",
+		Annotations: GetDescriptions(
+			[]string{"Logs a " + level + " level message"},
+			false,
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {
@@ -86,8 +89,11 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 // rotateLogsCmd allows manual log rotation.
 func rotateLogsCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "rotate",
-		Short: "Rotates logs that exceed the configured size",
+		Use: "rotate",
+		Annotations: GetDescriptions(
+			[]string{"Rotates logs that exceed the configured size"},
+			false,
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {
@@ -115,8 +121,11 @@ func rotateLogsCmd() *cobra.Command {
 // checkLogSizeCmd checks the current log size.
 func checkLogSizeCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "check-size",
-		Short: "Checks the log size without taking any action",
+		Use: "check-size",
+		Annotations: GetDescriptions(
+			[]string{"Checks the log size without taking any action"},
+			false,
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {
@@ -146,8 +155,11 @@ func checkLogSizeCmd() *cobra.Command {
 // archiveLogsCmd allows manual log archiving.
 func archiveLogsCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "archive",
-		Short: "Manually archives all logs",
+		Use: "archive",
+		Annotations: GetDescriptions(
+			[]string{"Manually archives all logs"},
+			false,
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			err := logger.ArchiveLogs(nil)
 			if err != nil {
@@ -164,7 +176,10 @@ func watchLogsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "watch",
 		Aliases: []string{"w"},
-		Short:   "Monitors logs in real-time",
+		Annotations: GetDescriptions(
+			[]string{"Monitors logs in real-time"},
+			false,
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {

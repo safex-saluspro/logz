@@ -9,8 +9,11 @@ import (
 // ServiceCmd creates the main command for managing the web service.
 func ServiceCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "service",
-		Short: "Manage the web service",
+		Use: "service",
+		Annotations: GetDescriptions(
+			[]string{"Start, stop, and get information about the web service"},
+			false,
+		),
 	}
 	cmd.AddCommand(startServiceCmd())
 	cmd.AddCommand(stopServiceCmd())

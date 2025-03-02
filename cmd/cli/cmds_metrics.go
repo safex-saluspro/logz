@@ -11,8 +11,11 @@ import (
 // MetricsCmd creates the main command for managing Prometheus metrics.
 func MetricsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "metrics",
-		Short: "Manage Prometheus metrics",
+		Use: "metrics",
+		Annotations: GetDescriptions(
+			[]string{"Manage Prometheus metrics"},
+			false,
+		),
 	}
 
 	cmd.AddCommand(enableMetricsCmd())
