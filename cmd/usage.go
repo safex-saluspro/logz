@@ -1,8 +1,12 @@
-package cmd
+package main
 
 import (
+	"fmt"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"os"
+	"os/exec"
+	"strings"
 )
 
 func colorYellow(s string) string {
@@ -77,3 +81,18 @@ var cliUsageTemplate = `{{- if index .Annotations "banner" }}{{colorBlue (index 
 
 {{colorYellow (printf "Use \"%s [command] --help\" for more information about a command." .CommandPath)}}{{end}}
 `
+
+const AppName = "logz"
+
+func installCheck() {
+	usrEnvs := os.Environ()
+	envPath := os.Getenv("PATH")
+	usrEnvs = append(usrEnvs, fmt.Sprintf("PATH=%s", envPath))
+	appBinPath, appBinPathErr := exec.LookPath(AppName)
+	if appBinPathErr != nil {
+		fmt.Printf("Error: %v\n", appBinPathErr)
+		return
+	}
+	appBinPath = strings.Replace(appBinPath, AppName, "", 1)
+
+}
