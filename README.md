@@ -96,6 +96,69 @@ logz stop
 logz watch
 ```
 
+### **Usage Examples**
+
+Here are some practical examples of how to use `logz` to log messages and enhance your application's logging capabilities:
+
+#### **1. Log a Debug Message with Metadata**
+
+```bash
+logz debug \
+--msg 'Just an example for how it works and show logs with this app.. AMAZING!! Dont you think?' \
+--output "stdout" \
+--metadata requestId=12345,user=admin
+```
+
+**Output:**
+
+```plaintext
+[2025-03-02T04:09:16Z] 🐛 DEBUG - Just an example for how it works and show logs with this app.. AMAZING!! Dont you think?
+                     {"requestId":"12345","user":"admin"}
+```
+
+#### **2. Log an Info Message to a File**
+
+```bash
+logz info \
+--msg "This is an information log entry!" \
+--output "/path/to/logfile.log" \
+--metadata sessionId=98765,location=server01
+```
+
+#### **3. Log an Error Message in JSON Format**
+
+```bash
+logz error \
+--msg "An error occurred while processing the request" \
+--output "stdout" \
+--format "json" \
+--metadata errorCode=500,details="Internal Server Error"
+```
+
+**Output (JSON):**
+
+```json
+{
+  "timestamp": "2025-03-02T04:10:52Z",
+  "level": "ERROR",
+  "message": "An error occurred while processing the request",
+  "metadata": {
+    "errorCode": 500,
+    "details": "Internal Server Error"
+  }
+}
+```
+
+---
+
+### **Description of Commands and Flags**
+- **`--msg`**: Specifies the log message.
+- **`--output`**: Defines where to output the log (`stdout` for console or a file path).
+- **`--format`**: Sets the format of the log (e.g., `text` or `json`).
+- **`--metadata`**: Adds metadata to the log entry in the form of key-value pairs.
+
+---
+
 ### Configuration
 Logz uses a JSON or YAML configuration file to centralize its setup. The file is automatically generated on first use or can be manually configured at:  
 `~/.kubex/logz/config.json`.
