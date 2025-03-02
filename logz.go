@@ -5,7 +5,6 @@ import (
 	"github.com/faelmori/logz/cmd"
 	"os"
 )
-import "github.com/faelmori/logz/logger"
 
 func main() {
 	if logzErr := cmd.RegX().Execute(); logzErr != nil {
@@ -13,5 +12,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-func GetLogger(prefix *string) logger.LogzLogger { return logger.NewLogger(prefix) }
