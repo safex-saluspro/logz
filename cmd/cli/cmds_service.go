@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// ServiceCmd creates the main command for managing the web service.
 func ServiceCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "service",
@@ -18,45 +19,50 @@ func ServiceCmd() *cobra.Command {
 	return cmd
 }
 
+// startServiceCmd creates the command to start the web service.
 func startServiceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
-		Short: "Inicia o serviço destacado",
+		Short: "Start the web service",
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {
-				fmt.Println("Erro ao inicializar ConfigManager.")
+				fmt.Println("Error initializing ConfigManager.")
 				return
 			}
 			cfgMgr := *configManager
 
 			config, err := cfgMgr.LoadConfig()
 			if err != nil {
-				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				fmt.Printf("Error loading configuration: %v\n", err)
 				return
 			}
 
 			if err := logger.Start(config.Port()); err != nil {
-				fmt.Printf("Erro ao iniciar serviço: %v\n", err)
+				fmt.Printf("Error starting service: %v\n", err)
 			} else {
-				fmt.Println("Serviço iniciado com sucesso.")
+				fmt.Println("Service started successfully.")
 			}
 		},
 	}
 }
+
+// stopServiceCmd creates the command to stop the web service.
 func stopServiceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
-		Short: "Para o serviço destacado",
+		Short: "Stop the web service",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := logger.Stop(); err != nil {
-				fmt.Printf("Erro ao parar serviço: %v\n", err)
+				fmt.Printf("Error stopping service: %v\n", err)
 			} else {
-				fmt.Println("Serviço parado com sucesso.")
+				fmt.Println("Service stopped successfully.")
 			}
 		},
 	}
 }
+
+// getServiceCmd creates the command to get information about the running web service.
 func getServiceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
@@ -72,6 +78,8 @@ func getServiceCmd() *cobra.Command {
 		},
 	}
 }
+
+// spawnServiceCmd creates the command to spawn a new instance of the web service.
 func spawnServiceCmd() *cobra.Command {
 	var configPath string
 	spCmd := &cobra.Command{

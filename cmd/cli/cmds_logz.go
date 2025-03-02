@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// LogzCmds retorna os comandos CLI para diferentes níveis de log e gerenciamento.
+// LogzCmds returns the CLI commands for different log levels and management.
 func LogzCmds() []*cobra.Command {
 	return []*cobra.Command{
 		newLogCmd("debug", []string{"dbg"}),
@@ -28,7 +28,7 @@ func LogzCmds() []*cobra.Command {
 	}
 }
 
-// newLogCmd configura um comando para um nível de log específico.
+// newLogCmd configures a command for a specific log level.
 func newLogCmd(level string, aliases []string) *cobra.Command {
 	var metaData, ctx map[string]string
 	var msg string
@@ -36,18 +36,18 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     level,
 		Aliases: aliases,
-		Short:   "Loga uma mensagem de nível " + level,
+		Short:   "Logs a " + level + " level message",
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {
-				fmt.Println("Erro ao inicializar ConfigManager.")
+				fmt.Println("Error initializing ConfigManager.")
 				return
 			}
 			cfgMgr := *configManager
 
 			config, err := cfgMgr.LoadConfig()
 			if err != nil {
-				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				fmt.Printf("Error loading configuration: %v\n", err)
 				return
 			}
 
@@ -69,113 +69,113 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 			case "error":
 				logr.Error(msg, ctxInterface)
 			case "fatal":
-				logr.Fatal(msg, ctxInterface)
+				logr.FatalC(msg, ctxInterface)
 			default:
 				logr.Info(msg, ctxInterface)
 			}
 		},
 	}
 
-	cmd.Flags().StringToStringVarP(&metaData, "metadata", "m", nil, "Metadados a serem incluídos")
-	cmd.Flags().StringToStringVarP(&ctx, "context", "c", nil, "Contexto para o log")
-	cmd.Flags().StringVarP(&msg, "msg", "M", "", "Mensagem do log")
+	cmd.Flags().StringToStringVarP(&metaData, "metadata", "m", nil, "Metadata to include")
+	cmd.Flags().StringToStringVarP(&ctx, "context", "c", nil, "Context for the log")
+	cmd.Flags().StringVarP(&msg, "msg", "M", "", "Log message")
 
 	return cmd
 }
 
-// rotateLogsCmd permite rotacionar logs manualmente.
+// rotateLogsCmd allows manual log rotation.
 func rotateLogsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "rotate",
-		Short: "Rotaciona os logs que excederem o tamanho configurado",
+		Short: "Rotates logs that exceed the configured size",
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {
-				fmt.Println("Erro ao inicializar ConfigManager.")
+				fmt.Println("Error initializing ConfigManager.")
 				return
 			}
 			cfgMgr := *configManager
 
 			config, err := cfgMgr.LoadConfig()
 			if err != nil {
-				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				fmt.Printf("Error loading configuration: %v\n", err)
 				return
 			}
 
 			err = logger.CheckLogSize(config)
 			if err != nil {
-				fmt.Printf("Erro ao rotacionar logs: %v\n", err)
+				fmt.Printf("Error rotating logs: %v\n", err)
 			} else {
-				fmt.Println("Logs rotacionados com sucesso!")
+				fmt.Println("Logs rotated successfully!")
 			}
 		},
 	}
 }
 
-// checkLogSizeCmd verifica o tamanho atual dos logs.
+// checkLogSizeCmd checks the current log size.
 func checkLogSizeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "check-size",
-		Short: "Verifica o tamanho dos logs sem realizar ações",
+		Short: "Checks the log size without taking any action",
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {
-				fmt.Println("Erro ao inicializar ConfigManager.")
+				fmt.Println("Error initializing ConfigManager.")
 				return
 			}
 			cfgMgr := *configManager
 
 			config, err := cfgMgr.LoadConfig()
 			if err != nil {
-				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				fmt.Printf("Error loading configuration: %v\n", err)
 				return
 			}
 
 			logDir := config.DefaultLogPath()
-			logSize, err := logger.GetLogDirectorySize(filepath.Dir(logDir)) // Adicione esta função ao logger
+			logSize, err := logger.GetLogDirectorySize(filepath.Dir(logDir)) // Add this function to logger
 			if err != nil {
-				fmt.Printf("Erro ao calcular o tamanho dos logs: %v\n", err)
+				fmt.Printf("Error calculating log size: %v\n", err)
 				return
 			}
 
-			fmt.Printf("O tamanho total dos logs no diretório '%s' é: %d bytes\n", filepath.Dir(logDir), logSize)
+			fmt.Printf("The total log size in directory '%s' is: %d bytes\n", filepath.Dir(logDir), logSize)
 		},
 	}
 }
 
-// archiveLogsCmd permite arquivar logs manualmente.
+// archiveLogsCmd allows manual log archiving.
 func archiveLogsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "archive",
-		Short: "Arquiva manualmente todos os logs",
+		Short: "Manually archives all logs",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := logger.ArchiveLogs(nil)
 			if err != nil {
-				fmt.Printf("Erro ao arquivar logs: %v\n", err)
+				fmt.Printf("Error archiving logs: %v\n", err)
 			} else {
-				fmt.Println("Logs arquivados com sucesso!")
+				fmt.Println("Logs archived successfully!")
 			}
 		},
 	}
 }
 
-// watchLogsCmd monitora logs em tempo real.
+// watchLogsCmd monitors logs in real-time.
 func watchLogsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "watch",
 		Aliases: []string{"w"},
-		Short:   "Monitora logs em tempo real",
+		Short:   "Monitors logs in real-time",
 		Run: func(cmd *cobra.Command, args []string) {
 			configManager := logger.NewConfigManager()
 			if configManager == nil {
-				fmt.Println("Erro ao inicializar ConfigManager.")
+				fmt.Println("Error initializing ConfigManager.")
 				return
 			}
 			cfgMgr := *configManager
 
 			config, err := cfgMgr.LoadConfig()
 			if err != nil {
-				fmt.Printf("Erro ao carregar configuração: %v\n", err)
+				fmt.Printf("Error loading configuration: %v\n", err)
 				return
 			}
 
@@ -183,7 +183,7 @@ func watchLogsCmd() *cobra.Command {
 			reader := logger.NewFileLogReader()
 			stopChan := make(chan struct{})
 
-			// Captura sinais para interrupção
+			// Capture signals for interruption
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 			go func() {
@@ -191,12 +191,12 @@ func watchLogsCmd() *cobra.Command {
 				close(stopChan)
 			}()
 
-			fmt.Println("Monitoração iniciada (Ctrl+C para sair):")
+			fmt.Println("Monitoring started (Ctrl+C to exit):")
 			if err := reader.Tail(logFilePath, stopChan); err != nil {
-				fmt.Printf("Erro ao monitorar logs: %v\n", err)
+				fmt.Printf("Error monitoring logs: %v\n", err)
 			}
 
-			// Aguarda um pequeno delay para finalizar
+			// Wait a small delay to finish
 			time.Sleep(500 * time.Millisecond)
 		},
 	}

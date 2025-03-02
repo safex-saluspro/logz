@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// MetricsCmd creates the main command for managing Prometheus metrics.
 func MetricsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "metrics",
@@ -23,6 +24,8 @@ func MetricsCmd() *cobra.Command {
 
 	return cmd
 }
+
+// enableMetricsCmd creates the command to enable Prometheus integration.
 func enableMetricsCmd() *cobra.Command {
 	var port string
 	enMCmd := &cobra.Command{
@@ -37,6 +40,8 @@ func enableMetricsCmd() *cobra.Command {
 	enMCmd.Flags().StringVarP(&port, "port", "p", "2112", "Port to expose Prometheus metrics")
 	return enMCmd
 }
+
+// disableMetricsCmd creates the command to disable Prometheus integration.
 func disableMetricsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "disable",
@@ -48,6 +53,8 @@ func disableMetricsCmd() *cobra.Command {
 		},
 	}
 }
+
+// addMetricCmd creates the command to add or update a Prometheus metric.
 func addMetricCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "add [name] [value]",
@@ -66,6 +73,8 @@ func addMetricCmd() *cobra.Command {
 		},
 	}
 }
+
+// removeMetricCmd creates the command to remove a Prometheus metric.
 func removeMetricCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "remove [name]",
@@ -79,6 +88,8 @@ func removeMetricCmd() *cobra.Command {
 		},
 	}
 }
+
+// listMetricsCmd creates the command to list all Prometheus metrics.
 func listMetricsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
@@ -98,6 +109,8 @@ func listMetricsCmd() *cobra.Command {
 		},
 	}
 }
+
+// watchMetricsCmd creates the command to watch Prometheus metrics in real time.
 func watchMetricsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "watch",

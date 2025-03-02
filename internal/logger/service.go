@@ -31,7 +31,7 @@ var (
 	lClient      *http.Client
 	lSocket      *zmq4.Socket
 	lDBus        *dbus.Conn
-	globalLogger *Logger // Global logger for the service
+	globalLogger *LogzCoreImpl // Global logger for the service
 	startTime    = time.Now()
 )
 

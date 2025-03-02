@@ -26,8 +26,8 @@ var logLevels = map[LogLevel]int{
 	FATAL: 5,
 }
 
-// Logger represents a logger with configuration and metadata.
-type Logger struct {
+// LogzCoreImpl represents a logger with configuration and metadata.
+type LogzCoreImpl struct {
 	level    LogLevel
 	writer   LogWriter
 	config   Config
@@ -35,8 +35,8 @@ type Logger struct {
 	mode     LogMode // Mode control: service or standalone
 }
 
-// NewLogger creates a new instance of Logger with the provided configuration.
-func NewLogger(config Config) *Logger {
+// NewLogger creates a new instance of LogzCoreImpl with the provided configuration.
+func NewLogger(config Config) *LogzCoreImpl {
 	// Set the log level from the Config
 	level := LogLevel(config.Level()) // Method config.Level() returns the log level as a string
 
@@ -80,7 +80,7 @@ func NewLogger(config Config) *Logger {
 		mode = ModeStandalone // Default to standalone if not specified
 	}
 
-	return &Logger{
+	return &LogzCoreImpl{
 		level:    level,
 		writer:   writer,
 		config:   config,
@@ -89,18 +89,18 @@ func NewLogger(config Config) *Logger {
 	}
 }
 
-// SetMetadata sets a metadata key-value pair for the Logger.
-func (l *Logger) SetMetadata(key string, value interface{}) {
+// SetMetadata sets a metadata key-value pair for the LogzCoreImpl.
+func (l *LogzCoreImpl) SetMetadata(key string, value interface{}) {
 	l.metadata[key] = value
 }
 
 // shouldLog checks if the log level should be logged.
-func (l *Logger) shouldLog(level LogLevel) bool {
+func (l *LogzCoreImpl) shouldLog(level LogLevel) bool {
 	return logLevels[level] >= logLevels[l.level]
 }
 
 // log logs a message with the specified level and context.
-func (l *Logger) log(level LogLevel, msg string, ctx map[string]interface{}) {
+func (l *LogzCoreImpl) log(level LogLevel, msg string, ctx map[string]interface{}) {
 	if !l.shouldLog(level) {
 		return
 	}
@@ -156,19 +156,19 @@ func (l *Logger) log(level LogLevel, msg string, ctx map[string]interface{}) {
 }
 
 // Debug logs a debug message with context.
-func (l *Logger) Debug(msg string, ctx map[string]interface{}) { l.log(DEBUG, msg, ctx) }
+func (l *LogzCoreImpl) Debug(msg string, ctx map[string]interface{}) { l.log(DEBUG, msg, ctx) }
 
 // Info logs an info message with context.
-func (l *Logger) Info(msg string, ctx map[string]interface{}) { l.log(INFO, msg, ctx) }
+func (l *LogzCoreImpl) Info(msg string, ctx map[string]interface{}) { l.log(INFO, msg, ctx) }
 
 // Warn logs a warning message with context.
-func (l *Logger) Warn(msg string, ctx map[string]interface{}) { l.log(WARN, msg, ctx) }
+func (l *LogzCoreImpl) Warn(msg string, ctx map[string]interface{}) { l.log(WARN, msg, ctx) }
 
 // Error logs an error message with context.
-func (l *Logger) Error(msg string, ctx map[string]interface{}) { l.log(ERROR, msg, ctx) }
+func (l *LogzCoreImpl) Error(msg string, ctx map[string]interface{}) { l.log(ERROR, msg, ctx) }
 
-// Fatal logs a fatal message with context and terminates the process.
-func (l *Logger) Fatal(msg string, ctx map[string]interface{}) { l.log(FATAL, msg, ctx) }
+// FatalC logs a fatal message with context and terminates the process.
+func (l *LogzCoreImpl) FatalC(msg string, ctx map[string]interface{}) { l.log(FATAL, msg, ctx) }
 
 // getCallerInfo returns the caller information for the log entry.
 func getCallerInfo(skip int) string {
