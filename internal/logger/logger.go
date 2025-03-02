@@ -41,23 +41,23 @@ func NewLogger(config Config) *LogzCoreImpl {
 	level := LogLevel(config.Level()) // Method config.Level() returns the log level as a string
 
 	var out *os.File
-	if config.DefaultLogPath() == "stdout" {
+	if config.Output() == "stdout" {
 		out = os.Stdout
 	} else {
 		// Ensure the log file exists and has the correct permissions
-		if _, err := os.Stat(config.DefaultLogPath()); os.IsNotExist(err) {
-			if err := os.MkdirAll(filepath.Dir(config.DefaultLogPath()), 0755); err != nil {
+		if _, err := os.Stat(config.Output()); os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(config.Output()), 0755); err != nil {
 				log.Printf("Error creating log directory: %v\nRedirecting to stdout...\n", err)
 				out = os.Stdout
 			} else {
-				out, err = os.OpenFile(config.DefaultLogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				out, err = os.OpenFile(config.Output(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 				if err != nil {
 					log.Printf("Error opening log file: %v\nRedirecting to stdout...\n", err)
 					out = os.Stdout
 				}
 			}
 		} else {
-			out, err = os.OpenFile(config.DefaultLogPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			out, err = os.OpenFile(config.Output(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				log.Printf("Error opening log file: %v\nRedirecting to stdout...\n", err)
 				out = os.Stdout

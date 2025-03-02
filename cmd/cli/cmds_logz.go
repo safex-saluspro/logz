@@ -31,7 +31,7 @@ func LogzCmds() []*cobra.Command {
 // newLogCmd configures a command for a specific log level.
 func newLogCmd(level string, aliases []string) *cobra.Command {
 	var metaData, ctx map[string]string
-	var msg string
+	var msg, output, format string
 
 	cmd := &cobra.Command{
 		Use:     level,
@@ -52,6 +52,14 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 			if err != nil {
 				fmt.Printf("Error loading configuration: %v\n", err)
 				return
+			}
+
+			if format != "" {
+				config.SetFormat(format)
+			}
+
+			if output != "" {
+				config.SetOutput(output)
 			}
 
 			logr := logger.NewLogger(config)
@@ -79,9 +87,11 @@ func newLogCmd(level string, aliases []string) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVarP(&msg, "msg", "M", "", "Log message")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file")
+	cmd.Flags().StringVarP(&format, "format", "f", "", "Output format")
 	cmd.Flags().StringToStringVarP(&metaData, "metadata", "m", nil, "Metadata to include")
 	cmd.Flags().StringToStringVarP(&ctx, "context", "c", nil, "Context for the log")
-	cmd.Flags().StringVarP(&msg, "msg", "M", "", "Log message")
 
 	return cmd
 }
@@ -140,7 +150,7 @@ func checkLogSizeCmd() *cobra.Command {
 				return
 			}
 
-			logDir := config.DefaultLogPath()
+			logDir := config.Output()
 			logSize, err := logger.GetLogDirectorySize(filepath.Dir(logDir)) // Add this function to logger
 			if err != nil {
 				fmt.Printf("Error calculating log size: %v\n", err)
@@ -194,7 +204,7 @@ func watchLogsCmd() *cobra.Command {
 				return
 			}
 
-			logFilePath := config.DefaultLogPath()
+			logFilePath := config.Output()
 			reader := logger.NewFileLogReader()
 			stopChan := make(chan struct{})
 

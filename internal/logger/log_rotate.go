@@ -14,7 +14,7 @@ import (
 
 // CheckLogSize checks and manages the size of the logs
 func CheckLogSize(config Config) error {
-	logDir := config.DefaultLogPath()
+	logDir := config.Output()
 	files, err := os.ReadDir(logDir)
 	if err != nil {
 		globalLogger.Error("Error reading the log directory", map[string]interface{}{"error": err})

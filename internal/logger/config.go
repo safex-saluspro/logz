@@ -28,11 +28,14 @@ type Config interface {
 	ReadTimeout() time.Duration
 	WriteTimeout() time.Duration
 	IdleTimeout() time.Duration
-	DefaultLogPath() string
+	Output() string
+	SetOutput(configPath string)
 	NotifierManager() NotifierManager
 	Mode() LogMode
 	Level() string
+	SetLevel(level string)
 	Format() string
+	SetFormat(format string)
 	GetInt(key string, value int) int
 }
 
@@ -47,7 +50,7 @@ type ConfigImpl struct {
 	VlReadTimeout     time.Duration
 	VlWriteTimeout    time.Duration
 	VlIdleTimeout     time.Duration
-	VlDefaultLogPath  string
+	VlOutput          string
 	VlNotifierManager NotifierManager
 	VlMode            LogMode
 }
@@ -62,8 +65,13 @@ func (c *ConfigImpl) IdleTimeout() time.Duration       { return c.VlIdleTimeout 
 func (c *ConfigImpl) NotifierManager() NotifierManager { return c.VlNotifierManager }
 func (c *ConfigImpl) Mode() LogMode                    { return c.VlMode }
 func (c *ConfigImpl) Level() string                    { return string(c.VlLevel) }
+func (c *ConfigImpl) SetLevel(level string)            { c.VlLevel = LogLevel(level) }
 func (c *ConfigImpl) Format() string                   { return string(c.VlFormat) }
-func (c *ConfigImpl) DefaultLogPath() string {
+func (c *ConfigImpl) SetFormat(format string)          { c.VlFormat = LogFormat(format) }
+func (c *ConfigImpl) Output() string {
+	if c.VlOutput != "" {
+		return c.VlOutput
+	}
 	home, homeErr := os.UserHomeDir()
 	if homeErr != nil {
 		home, homeErr = os.UserConfigDir()
@@ -84,6 +92,9 @@ func (c *ConfigImpl) DefaultLogPath() string {
 		}
 	}
 	return logPath
+}
+func (c *ConfigImpl) SetOutput(configPath string) {
+	c.VlOutput = configPath
 }
 func (c *ConfigImpl) GetInt(key string, defaultValue int) int {
 	viperInstance := viper.GetViper()
@@ -109,7 +120,8 @@ type ConfigManager interface {
 	GetConfig() Config
 	GetPidPath() string
 	GetConfigPath() string
-	DefaultLogPath() string
+	Output() string
+	SetOutput(configPath string)
 	LoadConfig() (Config, error)
 }
 
@@ -135,6 +147,12 @@ func (cm *ConfigManagerImpl) GetPidPath() string {
 
 // GetConfigPath returns the path to the configuration file.
 func (cm *ConfigManagerImpl) GetConfigPath() string {
+	if cm.config != nil {
+		if cm.config.Output() != "" {
+			return cm.config.Output()
+		}
+	}
+
 	home, homeErr := os.UserHomeDir()
 	if homeErr != nil {
 		home, homeErr = os.UserConfigDir()
@@ -152,8 +170,34 @@ func (cm *ConfigManagerImpl) GetConfigPath() string {
 	return configPath
 }
 
-// DefaultLogPath returns the path to the configuration file.
-func (cm *ConfigManagerImpl) DefaultLogPath() string {
+// SetOutput sets the path to the default log file.
+func (cm *ConfigManagerImpl) SetOutput(output string) {
+	if cm.config != nil {
+		cm.config.SetOutput(output)
+	} else {
+
+		if cm.config.Mode() == ModeService {
+			config, configErr := cm.LoadConfig()
+			if configErr != nil {
+				log.Printf("Error loading configuration: %v\n", configErr)
+				return
+			}
+			config.SetOutput(output)
+			cm.config = config
+		} else {
+			log.Printf("Cannot set output in standalone mode\n")
+		}
+
+	}
+}
+
+// Output returns the path to the configuration file.
+func (cm *ConfigManagerImpl) Output() string {
+	if cm.config != nil {
+		if cm.config.Output() != "" {
+			return cm.config.Output()
+		}
+	}
 	home, homeErr := os.UserHomeDir()
 	if homeErr != nil {
 		home, homeErr = os.UserConfigDir()
@@ -176,6 +220,34 @@ func (cm *ConfigManagerImpl) DefaultLogPath() string {
 	return logPath
 }
 
+func (cm *ConfigManagerImpl) SetLevel(level string) {
+	if cm.config != nil {
+		cm.config.SetLevel(level)
+	} else {
+		config, configErr := cm.LoadConfig()
+		if configErr != nil {
+			log.Printf("Error loading configuration: %v\n", configErr)
+			return
+		}
+		config.SetLevel(level)
+		cm.config = config
+	}
+}
+
+func (cm *ConfigManagerImpl) SetFormat(format string) {
+	if cm.config != nil {
+		cm.config.SetFormat(format)
+	} else {
+		config, configErr := cm.LoadConfig()
+		if configErr != nil {
+			log.Printf("Error loading configuration: %v\n", configErr)
+			return
+		}
+		config.SetFormat(format)
+		cm.config = config
+	}
+}
+
 // LoadConfig loads the configuration from the file and returns a Config instance.
 func (cm *ConfigManagerImpl) LoadConfig() (Config, error) {
 	configPath := cm.GetConfigPath()
@@ -185,6 +257,8 @@ func (cm *ConfigManagerImpl) LoadConfig() (Config, error) {
 
 	viperObj := viper.New()
 	viperObj.SetConfigFile(configPath)
+	viperObj.SetConfigType(getConfigType(configPath))
+
 	if readErr := viperObj.ReadInConfig(); readErr != nil {
 		return nil, fmt.Errorf("failed to read config: %w", readErr)
 	}
@@ -207,7 +281,7 @@ func (cm *ConfigManagerImpl) LoadConfig() (Config, error) {
 		VlReadTimeout:     viperObj.GetDuration("readTimeout"),
 		VlWriteTimeout:    viperObj.GetDuration("writeTimeout"),
 		VlIdleTimeout:     viperObj.GetDuration("idleTimeout"),
-		VlDefaultLogPath:  getOrDefault(viperObj.GetString("defaultLogPath"), defaultLogPath),
+		VlOutput:          getOrDefault(viperObj.GetString("defaultLogPath"), defaultLogPath),
 		VlNotifierManager: notifierManager,
 		VlMode:            mode,
 	}
@@ -241,7 +315,6 @@ func NewConfigManager() *ConfigManager {
 // ensureConfigExists checks if the configuration file exists, and creates it with default values if it does not.
 func ensureConfigExists(configPath string) error {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// Generate a default configuration
 		defaultConfig := ConfigImpl{
 			VlPort:            defaultPort,
 			VlBindAddress:     defaultBindAddress,
@@ -250,7 +323,7 @@ func ensureConfigExists(configPath string) error {
 			VlReadTimeout:     15 * time.Second,
 			VlWriteTimeout:    15 * time.Second,
 			VlIdleTimeout:     60 * time.Second,
-			VlDefaultLogPath:  defaultLogPath,
+			VlOutput:          defaultLogPath,
 			VlNotifierManager: NewNotifierManager(nil),
 			VlMode:            defaultMode,
 		}
@@ -260,6 +333,23 @@ func ensureConfigExists(configPath string) error {
 		}
 	}
 	return nil
+}
+
+func getConfigType(configPath string) string {
+	configType := filepath.Ext(configPath)
+	switch configType {
+	case ".yaml":
+		return "yaml"
+	case ".yml":
+		return "yaml"
+	case ".toml":
+		return "toml"
+	case ".ini":
+		return "ini"
+	default:
+		return "json"
+	}
+
 }
 
 // getOrDefault returns the value if it is not empty, otherwise returns the default value.

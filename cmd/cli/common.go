@@ -30,7 +30,11 @@ func GetDescriptions(descriptionArg []string, hideBanner bool) map[string]string
 	if strings.Contains(strings.Join(os.Args[0:], ""), "-h") {
 		description = descriptionArg[0]
 	} else {
-		description = descriptionArg[1]
+		if len(descriptionArg) > 1 {
+			description = descriptionArg[1]
+		} else {
+			description = descriptionArg[0]
+		}
 	}
 
 	if !hideBanner {
