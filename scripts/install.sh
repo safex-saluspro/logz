@@ -1,8 +1,8 @@
 #!/bin/sh
 
-CMD_PATH="$(realpath "$(dirname "$0")")"
+CMD_PATH="$(dirname $(realpath "$(dirname "$0")"))/cmd"
 BUILD_PATH="$(dirname "$CMD_PATH")"
-BINARY=${1:-"$BUILD_PATH/logz"}
+BINARY="$BUILD_PATH/logz"
 LOCAL_BIN="$HOME/.local/bin"
 GLOBAL_BIN="/usr/local/bin"
 
@@ -108,7 +108,7 @@ validate_versions() {
 }
 
 summary() {
-    install_dir=$(dirname "$BINARY")
+    install_dir="$BINARY"
     echo "${GREEN}Build and installation complete!${NC}"
     echo "Binary: $BINARY"
     echo "Installed in: $install_dir"
@@ -118,6 +118,17 @@ summary() {
 build_and_validate() {
     validate_versions
     build_binary
+}
+
+check_path() {
+    echo "Checking if the installation directory is in the PATH..."
+    if ! echo "$PATH" | grep -q "$1"; then
+        echo "⚠️  Warning: $1 is not in the PATH."
+        echo "Add the following to your ~/.bashrc, ~/.zshrc, or equivalent file:"
+        echo "export PATH=$1:\$PATH"
+    else
+        echo "✅ $1 is already in the PATH."
+    fi
 }
 
 case "$1" in
