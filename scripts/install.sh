@@ -1,8 +1,11 @@
 #!/bin/sh
 
-CMD_PATH="$(dirname $(realpath "$(dirname "$0")"))/cmd"
+set -e
+
+APP_NAME="logz"
+CMD_PATH="$(dirname "$(realpath "$(dirname "$0")")")/cmd"
 BUILD_PATH="$(dirname "$CMD_PATH")"
-BINARY="$BUILD_PATH/loggz"
+BINARY="$BUILD_PATH/$APP_NAME"
 LOCAL_BIN="$HOME/.local/bin"
 GLOBAL_BIN="/usr/local/bin"
 
@@ -49,11 +52,11 @@ install_binary() {
     if [ "$(id -u)" -ne 0 ]; then
         echo "You are not root. Installing in $LOCAL_BIN..."
         mkdir -p "$LOCAL_BIN"
-        cp "$BINARY" "$LOCAL_BIN/logz" || exit 1
+        cp "$BINARY" "$LOCAL_BIN/$APP_NAME" || exit 1
         add_to_path "$LOCAL_BIN"
     else
         echo "Root detected. Installing in $GLOBAL_BIN..."
-        cp "$BINARY" "$GLOBAL_BIN/logz" || exit 1
+        cp "$BINARY" "$GLOBAL_BIN/$APP_NAME" || exit 1
         add_to_path "$GLOBAL_BIN"
     fi
     clean

@@ -307,3 +307,11 @@ func Version() string {
 	}
 	return versionService.GetCurrentVersion()
 }
+
+func main() {
+	logger = GetLogger("main")
+	logger.Info("Hello Universe!", map[string]interface{}{
+		"context": "Logz - A simple logging library for Go",
+		"version": Version(),
+	})
+}

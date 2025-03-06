@@ -1,31 +1,34 @@
+APP_NAME := logz
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-BINARY_NAME := $(ROOT_DIR)logz
+BINARY_NAME := $(ROOT_DIR)$(APP_NAME)
 CMD_DIR := $(ROOT_DIR)cmd
 INSTALL_SCRIPT=$(ROOT_DIR)scripts/install.sh
 ARGS :=
 
-# Target for build
+# Alvo para build
 build:
-	go build -ldflags "-s -w -X main.version=$(git describe --tags) -X main.commit=$(git rev-parse HEAD) -X main.date=$(date +%Y-%m-%d)" -trimpath -o $(BINARY_NAME) ${CMD_DIR} &&\
+	@go build -ldflags "-s -w -X main.version=$(git describe --tags) -X main.commit=$(git rev-parse HEAD) -X main.date=$(date +%Y-%m-%d)" -trimpath -o $(BINARY_NAME) ${CMD_DIR} &&\
     upx $(BINARY_NAME) --force-overwrite --lzma --no-progress --no-color
+	@echo "Built $(BINARY_NAME)"
 
-# Target for development build (without compression)
 build-dev:
-	go build -ldflags "-s -w -X main.version=$(git describe --tags) -X main.commit=$(git rev-parse HEAD) -X main.date=$(date +%Y-%m-%d)" -trimpath -o $(BINARY_NAME) ${CMD_DIR}
+	@if [ -f $(BINARY_NAME) ]; then rm $(BINARY_NAME); fi
+	@go build -ldflags "-s -w -X main.version=$(git describe --tags) -X main.commit=$(git rev-parse HEAD) -X main.date=$(date +%Y-%m-%d)" -trimpath -o $(BINARY_NAME) ${CMD_DIR}
+	@echo "Built $(BINARY_NAME)"
 
-# Target for installation
 install:
-	sh $(INSTALL_SCRIPT) install $(ARGS)
+	@sh $(INSTALL_SCRIPT) install $(ARGS)
+	@echo "Installed $(BINARY_NAME)"
 
-# Clean the generated binary
+# Limpar o binário gerado
 clean:
-	rm -f $(BINARY_NAME)
+	@rm -f $(BINARY_NAME) || true
+	@echo "Cleaned up build artifacts"
 
-# Help target
+# Alvo de ajuda
 help:
 	@echo "Available targets:"
 	@echo "  make build      - Build the binary using install script"
-	@echo "  make build-dev  - Build the binary without compression"
 	@echo "  make install    - Install the binary and configure environment"
 	@echo "  make clean      - Clean up build artifacts"
 	@echo "  make help       - Display this help message"
