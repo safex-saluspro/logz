@@ -22,7 +22,7 @@ install:
 
 # Limpar o binário gerado
 clean:
-	@rm -f $(BINARY_NAME) || true
+	@if [ -f $(BINARY_NAME) ]; then rm $(BINARY_NAME); fi
 	@echo "Cleaned up build artifacts"
 
 # Alvo de ajuda
