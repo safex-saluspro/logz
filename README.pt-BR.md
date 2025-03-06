@@ -63,12 +63,11 @@ git clone https://github.com/faelmori/logz.git
 # Navegue até o diretório do projeto
 cd logz
 
-# Compile o binário com práticas de segurança
-go build -ldflags "-s -w -X main.version=v1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date +%Y-%m-%d)" -trimpath -o logz
+# Construa o binário usando make
+make build
 
-# (Opcional) Comprimir o binário com UPX para reduzir o tamanho
-# Certifique-se de ter o UPX instalado no sistema: https://upx.github.io/
-upx ./logz --force-overwrite --lzma --no-progress --no-color
+# Instale o binário usando make
+make install
 
 # (Opcional) Adicione o binário ao PATH para usá-lo globalmente
 export PATH=$PATH:$(pwd)
