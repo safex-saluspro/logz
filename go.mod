@@ -3,7 +3,6 @@ module github.com/faelmori/logz
 go 1.24
 
 require (
-	// github.com/faelmori/golife v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.18.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/godbus/dbus/v5 v5.1.0
@@ -14,7 +13,6 @@ require (
 )
 
 require (
-	// github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.9 // indirect
@@ -40,5 +38,3 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// replace github.com/faelmori/golife => ../golife
