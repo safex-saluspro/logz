@@ -1,13 +1,10 @@
 package logger
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"time"
 )
 
 type LogMode string
@@ -113,15 +110,10 @@ func (l *LogzCoreImpl) log(level LogLevel, msg string, ctx map[string]interface{
 		return
 	}
 
-	timestamp := time.Now().UTC()
-	caller := getCallerInfo(3)
-
 	entry := NewLogEntry().
 		WithLevel(level).
 		WithMessage(msg).
 		WithSeverity(logLevels[level])
-	entry.Timestamp = timestamp
-	entry.Caller = caller
 
 	// Merge global and local metadata
 	finalContext := mergeContext(l.metadata, ctx)
@@ -184,22 +176,16 @@ func (l *LogzCoreImpl) Error(msg string, ctx map[string]interface{}) { l.log(ERR
 // FatalC logs a fatal message with context and terminates the process.
 func (l *LogzCoreImpl) FatalC(msg string, ctx map[string]interface{}) { l.log(FATAL, msg, ctx) }
 
-func (l *LogzCoreImpl) SetLevel(level LogLevel)    { l.level = level }
-func (l *LogzCoreImpl) GetLevel() LogLevel         { return l.level }
+func (l *LogzCoreImpl) SetLevel(level LogLevel) { l.level = level }
+func (l *LogzCoreImpl) GetLevel() LogLevel      { return l.level }
+
 func (l *LogzCoreImpl) SetWriter(writer LogWriter) { l.writer = writer }
 func (l *LogzCoreImpl) GetWriter() LogWriter       { return l.writer }
-func (l *LogzCoreImpl) SetConfig(config Config)    { l.config = config }
-func (l *LogzCoreImpl) GetConfig() Config          { return l.config }
 
-// getCallerInfo returns the caller information for the log entry.
-func getCallerInfo(skip int) string {
-	pc, file, line, ok := runtime.Caller(skip)
-	if !ok {
-		return "unknown"
-	}
-	funcName := runtime.FuncForPC(pc).Name()
-	return fmt.Sprintf("%s:%d %s", trimFilePath(file), line, funcName)
-}
+func (l *LogzCoreImpl) GetMode() LogMode { return l.mode }
+
+func (l *LogzCoreImpl) SetConfig(config Config) { l.config = config }
+func (l *LogzCoreImpl) GetConfig() Config       { return l.config }
 
 // trimFilePath trims the file path to show only the last two segments.
 func trimFilePath(filePath string) string {

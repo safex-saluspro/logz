@@ -14,7 +14,7 @@ import (
 // Notifier defines the interface for a log notifier.
 type Notifier interface {
 	// Notify sends a log entry notification.
-	Notify(entry *LogEntry) error
+	Notify(entry LogzEntry) error
 	// Enable activates the notifier.
 	Enable()
 	// Disable deactivates the notifier.
@@ -62,18 +62,18 @@ func NewNotifier(manager NotifierManager, enabled bool, webhookURL, httpMethod, 
 }
 
 // Notify sends a log entry notification based on the configured settings.
-func (n *NotifierImpl) Notify(entry *LogEntry) error {
+func (n *NotifierImpl) Notify(entry LogzEntry) error {
 	if !n.EnabledFlag {
 		return nil
 	}
 
 	// Validate log level
-	if n.LogLevel != "" && n.LogLevel != string(entry.Level) {
+	if n.LogLevel != "" && n.LogLevel != string(entry.GetLevel()) {
 		return nil
 	}
 
 	// Validate Whitelist
-	if len(n.Whitelist) > 0 && !contains(n.Whitelist, entry.Source) {
+	if len(n.Whitelist) > 0 && !contains(n.Whitelist, entry.GetSource()) {
 		return nil
 	}
 
@@ -102,9 +102,9 @@ func (n *NotifierImpl) Notify(entry *LogEntry) error {
 }
 
 // httpNotify sends an HTTP notification.
-func (n *NotifierImpl) httpNotify(entry *LogEntry) error {
+func (n *NotifierImpl) httpNotify(entry LogzEntry) error {
 	if n.HttpMethod == "POST" {
-		req, err := http.NewRequest("POST", n.WebhookURL, strings.NewReader(entry.Message))
+		req, err := http.NewRequest("POST", n.WebhookURL, strings.NewReader(entry.GetMessage()))
 		if err != nil {
 			return fmt.Errorf("HTTP request creation error: %w", err)
 		}
@@ -127,8 +127,8 @@ func (n *NotifierImpl) httpNotify(entry *LogEntry) error {
 }
 
 // wsNotify sends a WebSocket notification.
-func (n *NotifierImpl) wsNotify(entry *LogEntry) error {
-	message := n.AuthToken + "|" + entry.Message
+func (n *NotifierImpl) wsNotify(entry LogzEntry) error {
+	message := n.AuthToken + "|" + entry.GetMessage()
 	if _, err := n.Websocket().Send(message, 0); err != nil {
 		return fmt.Errorf("WebSocket error: %w", err)
 	}
@@ -136,8 +136,8 @@ func (n *NotifierImpl) wsNotify(entry *LogEntry) error {
 }
 
 // dbusNotify sends a DBus notification.
-func (n *NotifierImpl) dbusNotify(entry *LogEntry) error {
-	output := n.AuthToken + "|" + entry.Message
+func (n *NotifierImpl) dbusNotify(entry LogzEntry) error {
+	output := n.AuthToken + "|" + entry.GetMessage()
 	dbusObj := n.DBusClient().Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
 	if call := dbusObj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0), "", output, []string{}, map[string]dbus.Variant{}, int32(5000)); call.Err != nil {
 		return fmt.Errorf("DBus call error: %w", call.Err)
@@ -193,11 +193,11 @@ func NewHTTPNotifier(webhookURL, authToken string) *HTTPNotifier {
 }
 
 // Notify sends an HTTP notification.
-func (n *HTTPNotifier) Notify(entry *LogEntry) error {
+func (n *HTTPNotifier) Notify(entry LogzEntry) error {
 	if !n.EnabledFlag {
 		return nil
 	}
-	req, err := http.NewRequest(n.HttpMethod, n.WebhookURL, strings.NewReader(entry.Message))
+	req, err := http.NewRequest(n.HttpMethod, n.WebhookURL, strings.NewReader(entry.GetMessage()))
 	if err != nil {
 		return fmt.Errorf("HTTPNotifier request creation error: %w", err)
 	}
@@ -233,11 +233,11 @@ func NewZMQNotifier(endpoint string) *ZMQNotifier {
 }
 
 // Notify sends a WebSocket notification.
-func (n *ZMQNotifier) Notify(entry *LogEntry) error {
+func (n *ZMQNotifier) Notify(entry LogzEntry) error {
 	if !n.EnabledFlag {
 		return nil
 	}
-	message := n.AuthToken + "|" + entry.Message
+	message := n.AuthToken + "|" + entry.GetMessage()
 	if _, err := n.Websocket().Send(message, 0); err != nil {
 		return fmt.Errorf("ZMQNotifier error: %w", err)
 	}
@@ -257,11 +257,11 @@ func NewDBusNotifier() *DBusNotifier {
 }
 
 // Notify sends a DBus notification.
-func (n *DBusNotifier) Notify(entry *LogEntry) error {
+func (n *DBusNotifier) Notify(entry LogzEntry) error {
 	if !n.EnabledFlag {
 		return nil
 	}
-	output := n.AuthToken + "|" + entry.Message
+	output := n.AuthToken + "|" + entry.GetMessage()
 	dbusObj := n.DBusClient().Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
 	if call := dbusObj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0), "", output, []string{}, map[string]dbus.Variant{}, int32(5000)); call.Err != nil {
 		return fmt.Errorf("DBusNotifier error: %w", call.Err)

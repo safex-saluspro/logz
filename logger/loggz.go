@@ -7,6 +7,11 @@ import (
 	"os"
 )
 
+type LogFormatter = logger.LogFormatter
+
+// LogzEntry represents a single log entry with various attributes.
+type LogzEntry = logger.LogzEntry
+
 // LogzCore is the interface with the basic methods of the existing logger.
 type LogzCore interface {
 	// SetMetadata sets a metadata key-value pair.

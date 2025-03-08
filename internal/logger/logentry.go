@@ -3,6 +3,7 @@ package logger
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 )
 
@@ -16,6 +17,46 @@ const (
 	ERROR LogLevel = "ERROR"
 	FATAL LogLevel = "FATAL"
 )
+
+// LogzEntry represents a single log entry with various attributes.
+type LogzEntry interface {
+	// WithLevel sets the log level for the LogEntry.
+	WithLevel(level LogLevel) LogzEntry
+	// WithSource sets the source for the LogEntry.
+	WithSource(source string) LogzEntry
+	// WithContext sets the context for the LogEntry.
+	WithContext(context string) LogzEntry
+	// WithMessage sets the message for the LogEntry.
+	WithMessage(message string) LogzEntry
+	// WithProcessID sets the process ID for the LogEntry.
+	WithProcessID(pid int) LogzEntry
+	// WithHostname sets the hostname for the LogEntry.
+	WithHostname(hostname string) LogzEntry
+	// WithSeverity sets the severity level for the LogEntry.
+	WithSeverity(severity int) LogzEntry
+	// WithTraceID sets the trace ID for the LogEntry.
+	WithTraceID(traceID string) LogzEntry
+	// AddTag adds a tag to the LogEntry.
+	AddTag(key, value string) LogzEntry
+	// AddMetadata adds metadata to the LogEntry.
+	AddMetadata(key string, value interface{}) LogzEntry
+	// GetMetadata returns the metadata of the LogEntry.
+	GetMetadata() map[string]interface{}
+	// GetContext returns the context of the LogEntry.
+	GetContext() string
+	// GetTimestamp returns the timestamp of the LogEntry.
+	GetTimestamp() time.Time
+	// GetMessage returns the message of the LogEntry.
+	GetMessage() string
+	// GetLevel returns the log level of the LogEntry.
+	GetLevel() LogLevel
+	// GetSource returns the source of the LogEntry.
+	GetSource() string
+	// Validate checks if the LogEntry has all required fields set.
+	Validate() error
+	// String returns a string representation of the LogEntry.
+	String() string
+}
 
 // LogEntry represents a single log entry with various attributes.
 type LogEntry struct {
@@ -34,64 +75,66 @@ type LogEntry struct {
 }
 
 // NewLogEntry creates a new instance of LogEntry with the current timestamp and initialized maps.
-func NewLogEntry() *LogEntry {
-	return &LogEntry{
+func NewLogEntry() LogzEntry {
+	le := LogEntry{
 		Timestamp: time.Now().UTC(),
 		Tags:      make(map[string]string),
 		Metadata:  make(map[string]interface{}),
+		Caller:    getCallerInfo(3),
 	}
+	return &le
 }
 
 // WithLevel sets the log level for the LogEntry.
-func (le *LogEntry) WithLevel(level LogLevel) *LogEntry {
+func (le *LogEntry) WithLevel(level LogLevel) LogzEntry {
 	le.Level = level
 	return le
 }
 
 // WithSource sets the source for the LogEntry.
-func (le *LogEntry) WithSource(source string) *LogEntry {
+func (le *LogEntry) WithSource(source string) LogzEntry {
 	le.Source = source
 	return le
 }
 
 // WithContext sets the context for the LogEntry.
-func (le *LogEntry) WithContext(context string) *LogEntry {
+func (le *LogEntry) WithContext(context string) LogzEntry {
 	le.Context = context
 	return le
 }
 
 // WithMessage sets the message for the LogEntry.
-func (le *LogEntry) WithMessage(message string) *LogEntry {
+func (le *LogEntry) WithMessage(message string) LogzEntry {
 	le.Message = message
 	return le
 }
 
 // WithProcessID sets the process ID for the LogEntry.
-func (le *LogEntry) WithProcessID(pid int) *LogEntry {
+func (le *LogEntry) WithProcessID(pid int) LogzEntry {
 	le.ProcessID = pid
 	return le
 }
 
 // WithHostname sets the hostname for the LogEntry.
-func (le *LogEntry) WithHostname(hostname string) *LogEntry {
+func (le *LogEntry) WithHostname(hostname string) LogzEntry {
 	le.Hostname = hostname
 	return le
 }
 
 // WithSeverity sets the severity level for the LogEntry.
-func (le *LogEntry) WithSeverity(severity int) *LogEntry {
+func (le *LogEntry) WithSeverity(severity int) LogzEntry {
 	le.Severity = severity
 	return le
 }
 
 // WithTraceID sets the trace ID for the LogEntry.
-func (le *LogEntry) WithTraceID(traceID string) *LogEntry {
+func (le *LogEntry) WithTraceID(traceID string) LogzEntry {
 	le.TraceID = traceID
 	return le
 }
 
 // AddTag adds a tag to the LogEntry.
-func (le *LogEntry) AddTag(key, value string) *LogEntry {
+func (le *LogEntry) AddTag(key, value string) LogzEntry {
 	if le.Tags == nil {
 		le.Tags = make(map[string]string)
 	}
@@ -99,14 +142,32 @@ func (le *LogEntry) AddTag(key, value string) *LogEntry {
 	return le
 }
 
+// GetLevel returns the log level of the LogEntry.
+func (le *LogEntry) GetLevel() LogLevel { return le.Level }
+
 // AddMetadata adds metadata to the LogEntry.
-func (le *LogEntry) AddMetadata(key string, value interface{}) *LogEntry {
+func (le *LogEntry) AddMetadata(key string, value interface{}) LogzEntry {
 	if le.Metadata == nil {
 		le.Metadata = make(map[string]interface{})
 	}
 	le.Metadata[key] = value
 	return le
 }
+
+// GetMetadata returns the metadata of the LogEntry.
+func (le *LogEntry) GetMetadata() map[string]interface{} { return le.Metadata }
+
+// GetContext returns the context of the LogEntry.
+func (le *LogEntry) GetContext() string { return le.Context }
+
+// GetTimestamp returns the timestamp of the LogEntry.
+func (le *LogEntry) GetTimestamp() time.Time { return le.Timestamp }
+
+// GetMessage returns the message of the LogEntry.
+func (le *LogEntry) GetMessage() string { return le.Message }
+
+// GetSource returns the source of the LogEntry.
+func (le *LogEntry) GetSource() string { return le.Source }
 
 // Validate checks if the LogEntry has all required fields set.
 func (le *LogEntry) Validate() error {
@@ -131,4 +192,14 @@ func (le *LogEntry) String() string {
 		le.Timestamp.Format(time.RFC3339),
 		le.Level,
 		le.Message)
+}
+
+// getCallerInfo returns the caller information for the log entry.
+func getCallerInfo(skip int) string {
+	pc, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return "unknown"
+	}
+	funcName := runtime.FuncForPC(pc).Name()
+	return fmt.Sprintf("%s:%d %s", trimFilePath(file), line, funcName)
 }

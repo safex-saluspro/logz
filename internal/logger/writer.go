@@ -12,14 +12,14 @@ import (
 
 // LogFormatter defines the contract for formatting log entries.
 type LogFormatter interface {
-	Format(entry *LogEntry) (string, error)
+	Format(entry LogzEntry) (string, error)
 }
 
 // JSONFormatter formats the log in JSON format.
 type JSONFormatter struct{}
 
 // Format converts the log entry to JSON.
-func (f *JSONFormatter) Format(entry *LogEntry) (string, error) {
+func (f *JSONFormatter) Format(entry LogzEntry) (string, error) {
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return "", err
@@ -31,21 +31,23 @@ func (f *JSONFormatter) Format(entry *LogEntry) (string, error) {
 type TextFormatter struct{}
 
 // Format converts the log entry to a formatted string with colors and icons.
-func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
+func (f *TextFormatter) Format(entry LogzEntry) (string, error) {
 	// If the LOGZ_NO_COLOR variable is set or if we are on Windows, disable colors.
 	noColor := os.Getenv("LOGZ_NO_COLOR") != "" || runtime.GOOS == "windows"
+
+	ent := entry
 
 	var icon, levelStr, reset string
 	if noColor {
 		icon = ""
-		levelStr = string(entry.Level)
+		levelStr = string(ent.GetLevel())
 		reset = ""
 	} else {
 		// Define the ANSI "reset"
 		reset = "\033[0m"
 		var color string
 		// Choose color and icon according to the level
-		switch entry.Level {
+		switch ent.GetLevel() {
 		case DEBUG:
 			color = "\033[34m" // blue
 			icon = "🐛"
@@ -66,25 +68,25 @@ func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
 			icon = ""
 		}
 		icon = color + icon + reset
-		levelStr = color + string(entry.Level) + reset
+		levelStr = color + string(ent.GetLevel()) + reset
 	}
 
 	contextMsg := ""
-	if entry.Context != "" {
-		contextMsg = fmt.Sprintf("(Context: %s)", entry.Context)
+	if ent.GetContext() != "" {
+		contextMsg = fmt.Sprintf("(Context: %s)", ent.GetContext())
 	}
 
 	metadata := ""
-	if len(entry.Metadata) > 0 {
-		metadata = fmt.Sprintf("\n%s %s", strings.Repeat(" ", len(entry.Timestamp.Format(time.RFC3339))+3), formatMetadata(entry.Metadata))
+	if len(ent.GetMetadata()) > 0 {
+		metadata = fmt.Sprintf("\n%s %s", strings.Repeat(" ", len(entry.GetTimestamp().Format(time.RFC3339))+3), formatMetadata(entry.GetMetadata()))
 	}
 
 	// The formatting includes timestamp, icon, level, message, and context.
 	return fmt.Sprintf("[%s] %s %s - %s %s%s",
-		entry.Timestamp.Format(time.RFC3339),
+		entry.GetTimestamp().Format(time.RFC3339),
 		icon,
 		levelStr,
-		entry.Message,
+		entry.GetMessage(),
 		contextMsg,
 		metadata,
 	), nil
@@ -92,7 +94,8 @@ func (f *TextFormatter) Format(entry *LogEntry) (string, error) {
 
 // LogWriter defines the contract for writing logs.
 type LogWriter interface {
-	Write(entry *LogEntry) error
+	Write(entry LogzEntry) error
+	GetFormatter() LogFormatter
 }
 
 // DefaultWriter implements LogWriter using an io.Writer and a LogFormatter.
@@ -110,13 +113,18 @@ func NewDefaultWriter(out io.Writer, formatter LogFormatter) *DefaultWriter {
 }
 
 // Write formats the entry and writes it to the configured destination.
-func (w *DefaultWriter) Write(entry *LogEntry) error {
+func (w *DefaultWriter) Write(entry LogzEntry) error {
 	formatted, err := w.formatter.Format(entry)
 	if err != nil {
 		return err
 	}
 	_, err = fmt.Fprintln(w.out, formatted)
 	return err
+}
+
+// GetFormatter returns the formatter used by the writer.
+func (w *DefaultWriter) GetFormatter() LogFormatter {
+	return w.formatter
 }
 
 func formatMetadata(metadata map[string]interface{}) string {
