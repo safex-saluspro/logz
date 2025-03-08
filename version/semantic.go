@@ -50,7 +50,7 @@ func getLatestTag(repoURL string) (string, error) {
 }
 
 func (v *VersionServiceImpl) updateLatestVersion() error {
-	repoURL := "https://api.github.com/repos/faelmori/spidergo"
+	repoURL := "https://api.github.com/repos/faelmori/logz"
 	tag, err := getLatestTag(repoURL)
 	if err != nil {
 		return err
@@ -151,7 +151,3 @@ func CheckVersion() {
 	}
 }
 func Version() string { return NewVersionService().GetCurrentVersion() }
-
-func main() {
-
-}
