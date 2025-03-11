@@ -38,6 +38,7 @@ type Config interface {
 	Format() string
 	SetFormat(LogFormat LogFormat)
 	GetInt(key string, value int) int
+	GetFormatter() LogFormatter
 }
 
 // ConfigImpl implements the Config interface and holds the configuration values.
@@ -56,6 +57,14 @@ type ConfigImpl struct {
 	VlMode            LogMode
 }
 
+func (c *ConfigImpl) GetFormatter() LogFormatter {
+	switch c.Format() {
+	case "json":
+		return &JSONFormatter{}
+	default:
+		return &TextFormatter{}
+	}
+}
 func (c *ConfigImpl) Port() string                     { return c.VlPort }
 func (c *ConfigImpl) BindAddress() string              { return c.VlBindAddress }
 func (c *ConfigImpl) Address() string                  { return c.VlAddress }
@@ -246,6 +255,16 @@ func (cm *ConfigManagerImpl) SetFormat(format LogFormat) {
 		}
 		config.SetFormat(format)
 		cm.config = config
+	}
+}
+
+// GetFormatter returns the formatter for the logger.
+func (cm *ConfigManagerImpl) GetFormatter() LogFormatter {
+	switch cm.config.Format() {
+	case "text":
+		return &TextFormatter{}
+	default:
+		return &JSONFormatter{}
 	}
 }
 

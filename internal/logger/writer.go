@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -32,70 +31,49 @@ type TextFormatter struct{}
 
 // Format converts the log entry to a formatted string with colors and icons.
 func (f *TextFormatter) Format(entry LogzEntry) (string, error) {
-	// If the LOGZ_NO_COLOR variable is set or if we are on Windows, disable colors.
 	noColor := os.Getenv("LOGZ_NO_COLOR") != "" || runtime.GOOS == "windows"
+	icon, levelStr := "", ""
 
-	ent := entry
-
-	var icon, levelStr, reset string
-	if noColor {
-		icon = ""
-		levelStr = string(ent.GetLevel())
-		reset = ""
-	} else {
-		// Define the ANSI "reset"
-		reset = "\033[0m"
-		var color string
-		// Choose color and icon according to the level
-		switch ent.GetLevel() {
+	// Configure cores e ícones por nível
+	if !noColor {
+		switch entry.GetLevel() {
 		case DEBUG:
-			color = "\033[34m" // blue
-			icon = "🐛"
+			icon, levelStr = "\033[34m🐛\033[0m", "\033[34mDEBUG\033[0m"
 		case INFO:
-			color = "\033[32m" // green
-			icon = "ℹ️"
+			icon, levelStr = "\033[32mℹ️\033[0m", "\033[32mINFO\033[0m"
 		case WARN:
-			color = "\033[33m" // yellow
-			icon = "⚠️"
+			icon, levelStr = "\033[33m⚠️\033[0m", "\033[33mWARN\033[0m"
 		case ERROR:
-			color = "\033[31m" // red
-			icon = "❌"
+			icon, levelStr = "\033[31m❌\033[0m", "\033[31mERROR\033[0m"
 		case FATAL:
-			color = "\033[35m" // magenta
-			icon = "💀"
+			icon, levelStr = "\033[35m💀\033[0m", "\033[35mFATAL\033[0m"
 		default:
-			color = ""
-			icon = ""
+			icon, levelStr = string(entry.GetLevel()), ""
 		}
-		icon = color + icon + reset
-		levelStr = color + string(ent.GetLevel()) + reset
+	} else {
+		icon, levelStr = string(entry.GetLevel()), ""
 	}
 
-	contextMsg := ""
-	if ent.GetContext() != "" {
-		contextMsg = fmt.Sprintf("(Context: %s)", ent.GetContext())
-	}
+	// Header compacto
+	header := fmt.Sprintf("[%s] %s %s", entry.GetTimestamp().Format(time.RFC3339), icon, levelStr)
 
+	// Contexto e Metadados
 	metadata := ""
-	if len(ent.GetMetadata()) > 0 {
-		metadata = fmt.Sprintf("\n%s %s", strings.Repeat(" ", len(entry.GetTimestamp().Format(time.RFC3339))+3), formatMetadata(entry.GetMetadata()))
+	if len(entry.GetMetadata()) > 0 {
+		if entry.GetLevel() == DEBUG || entry.GetMetadata()["showContext"] == true {
+			metadata = fmt.Sprintf("\n  %s", formatMetadata(entry.GetMetadata()))
+		} /* else {
+			metadata = fmt.Sprintf(" -> %s", formatMetadata(entry.GetMetadata()))
+		}*/
 	}
 
-	// The formatting includes timestamp, icon, level, message, and context.
-	return fmt.Sprintf("[%s] %s %s - %s %s%s",
-		entry.GetTimestamp().Format(time.RFC3339),
-		icon,
-		levelStr,
-		entry.GetMessage(),
-		contextMsg,
-		metadata,
-	), nil
+	// Formato final
+	return fmt.Sprintf("%s | %s%s", header, entry.GetMessage(), metadata), nil
 }
 
 // LogWriter defines the contract for writing logs.
 type LogWriter interface {
 	Write(entry LogzEntry) error
-	GetFormatter() LogFormatter
 }
 
 // DefaultWriter implements LogWriter using an io.Writer and a LogFormatter.
@@ -120,11 +98,6 @@ func (w *DefaultWriter) Write(entry LogzEntry) error {
 	}
 	_, err = fmt.Fprintln(w.out, formatted)
 	return err
-}
-
-// GetFormatter returns the formatter used by the writer.
-func (w *DefaultWriter) GetFormatter() LogFormatter {
-	return w.formatter
 }
 
 func formatMetadata(metadata map[string]interface{}) string {
