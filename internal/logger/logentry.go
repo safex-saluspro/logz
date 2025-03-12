@@ -77,7 +77,7 @@ type LogEntry struct {
 // NewLogEntry creates a new instance of LogEntry with the current timestamp and initialized maps.
 func NewLogEntry() LogzEntry {
 	le := LogEntry{
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Tags:      make(map[string]string),
 		Metadata:  make(map[string]interface{}),
 		Caller:    getCallerInfo(3),

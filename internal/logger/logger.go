@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -46,9 +47,10 @@ func NewLogger(config Config) *LogzCoreImpl {
 	level := LogLevel(config.Level()) // Method config.Level() returns the log level as a string
 
 	var out *os.File
-	if config.Output() == "stdout" {
+	if strings.ToLower(config.Output()) == "stdout" || config.Output() == "" || config.Output() == os.Stdout.Name() {
 		out = os.Stdout
 	} else {
+		fmt.Println("Output: ", config.Output())
 		// Ensure the log file exists and has the correct permissions
 		if _, err := os.Stat(config.Output()); os.IsNotExist(err) {
 			if err := os.MkdirAll(filepath.Dir(config.Output()), 0755); err != nil {
@@ -72,11 +74,11 @@ func NewLogger(config Config) *LogzCoreImpl {
 
 	// Initialize the formatter (JSON or text)
 	var formatter LogFormatter
-	if config.Format() == "json" {
-		formatter = &JSONFormatter{}
-	} else {
-		formatter = &TextFormatter{}
-	}
+	//if config.Format() == "json" {
+	//	formatter = &JSONFormatter{}
+	//} else {
+	formatter = &TextFormatter{}
+	//}
 	writer := NewDefaultWriter(out, formatter)
 
 	// Read the mode from Config

@@ -52,7 +52,7 @@ func initializeLogger(prefix string) {
 		if logOutput != "" {
 			logger.GetConfig().SetOutput(logOutput)
 		} else {
-			logger.GetConfig().SetOutput("stdout")
+			logger.GetConfig().SetOutput(os.Stdout.Name())
 		}
 	})
 }
@@ -276,7 +276,7 @@ func GetLogOutput() string {
 	mu.RLock()
 	defer mu.RUnlock()
 	if logger == nil {
-		return "stdout"
+		return os.Stdout.Name()
 	}
 	return logger.GetConfig().Output()
 }

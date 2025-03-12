@@ -16,9 +16,10 @@ import (
 const (
 	defaultPort        = "9999"
 	defaultBindAddress = "0.0.0.0"
-	defaultLogPath     = "stdout"
 	defaultMode        = ModeStandalone
 )
+
+var defaultLogPath = "stdout"
 
 // Config interface defines the methods to access configuration settings.
 type Config interface {
@@ -158,7 +159,7 @@ func (cm *ConfigManagerImpl) GetPidPath() string {
 // GetConfigPath returns the path to the configuration file.
 func (cm *ConfigManagerImpl) GetConfigPath() string {
 	if cm.config != nil {
-		if cm.config.Output() != "" {
+		if cm.config.Output() != "" && cm.config.Mode() == ModeService {
 			return cm.config.Output()
 		}
 	}

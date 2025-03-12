@@ -2,13 +2,13 @@
 
 _about='
 ################################################################################
-# This Script is used to install logz project.                                 #
+# This Script is used to install logz project.                           #
 #                                                                              #
 # Supported OS: Linux, macOS ---> Windows(not supported)                       #
 # Supported Architecture: amd64, arm64                                         #
-# Source: https://github.com/faelmori/logz                                     #
-# Binary Release: https://github.com/faelmori/logz/releases/latest             #
-# License: MIT                                                                 #
+# Source: https://github.com/faelmori/logz                             #
+# Binary Release: https://github.com/faelmori/logz/releases/latest     #
+# License: Apache License 2.0                                                  #
 # Notes:                                                                       #
 # - [version] is optional; if omitted, the latest version will be used.        #
 # - If the script is run locally, it will try to resolve the version from the  #
@@ -343,4 +343,3 @@ case "$1" in
 esac
 
 exit $?
-
