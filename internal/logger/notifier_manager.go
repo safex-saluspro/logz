@@ -3,7 +3,6 @@ package logger
 import (
 	"fmt"
 	"github.com/godbus/dbus/v5"
-	"github.com/pebbe/zmq4"
 	"github.com/spf13/viper"
 	"net/http"
 )
@@ -12,8 +11,11 @@ import (
 type NotifierManager interface {
 	// WebServer returns the HTTP server instance.
 	WebServer() *http.Server
+	// Temporarily disabled due to external dependency on zmq4
+	// Uncomment and ensure the required libraries are installed if needed in the future
 	// Websocket returns the ZMQ socket instance.
-	Websocket() *zmq4.Socket
+	// Websocket() *zmq4.Socket
+
 	// WebClient returns the HTTP client instance.
 	WebClient() *http.Client
 	// DBusClient returns the DBus connection instance.
@@ -34,8 +36,10 @@ type NotifierManager interface {
 
 // NotifierManagerImpl is the implementation of the NotifierManager interface.
 type NotifierManagerImpl struct {
-	webServer  *http.Server
-	websocket  *zmq4.Socket
+	webServer *http.Server
+	// Temporarily disabled due to external dependency on zmq4
+	// Uncomment and ensure the required libraries are installed if needed in the future
+	// websocket  *zmq4.Socket
 	webClient  *http.Client
 	dbusClient *dbus.Conn
 	notifiers  map[string]Notifier
@@ -121,13 +125,15 @@ func (nm *NotifierManagerImpl) WebServer() *http.Server {
 	return nm.webServer
 }
 
+// Temporarily disabled due to external dependency on zmq4
+// Uncomment and ensure the required libraries are installed if needed in the future
 // Websocket returns the ZMQ socket instance.
-func (nm *NotifierManagerImpl) Websocket() *zmq4.Socket {
-	if nm.websocket == nil {
-		nm.websocket = Socket()
-	}
-	return nm.websocket
-}
+//func (nm *NotifierManagerImpl) Websocket() *zmq4.Socket {
+//	if nm.websocket == nil {
+//		nm.websocket = Socket()
+//	}
+//	return nm.websocket
+//}
 
 // WebClient returns the HTTP client instance.
 func (nm *NotifierManagerImpl) WebClient() *http.Client {

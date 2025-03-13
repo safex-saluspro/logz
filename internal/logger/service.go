@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/godbus/dbus/v5"
-	"github.com/pebbe/zmq4"
+
 	"github.com/spf13/viper"
 	"log"
 	"net/http"
@@ -27,9 +27,11 @@ const (
 )
 
 var (
-	lSrv         *http.Server
-	lClient      *http.Client
-	lSocket      *zmq4.Socket
+	lSrv    *http.Server
+	lClient *http.Client
+	// Temporarily disabled due to external dependency on zmq4
+	// Uncomment and ensure the required libraries are installed if needed in the future
+	//lSocket      *zmq4.Socket
 	lDBus        *dbus.Conn
 	globalLogger *LogzCoreImpl // Global logger for the service
 	startTime    = time.Now()
@@ -165,13 +167,15 @@ func Client() *http.Client {
 	return lClient
 }
 
+// Temporarily disabled due to external dependency on zmq4
+// Uncomment and ensure the required libraries are installed if needed in the future
 // Socket returns the ZMQ socket instance.
-func Socket() *zmq4.Socket {
-	if lSocket == nil {
-		lSocket, _ = zmq4.NewSocket(zmq4.PUB)
-	}
-	return lSocket
-}
+//func Socket() *zmq4.Socket {
+//	if lSocket == nil {
+//		lSocket, _ = zmq4.NewSocket(zmq4.PUB)
+//	}
+//	return lSocket
+//}
 
 // DBus returns the DBus connection instance.
 func DBus() *dbus.Conn {

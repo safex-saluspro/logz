@@ -3,7 +3,6 @@ package logger
 import (
 	"fmt"
 	"github.com/godbus/dbus/v5"
-	"github.com/pebbe/zmq4"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,8 +23,12 @@ type Notifier interface {
 
 	// WebServer returns the HTTP server instance.
 	WebServer() *http.Server
+
+	// Temporarily disabled due to external dependency on zmq4
+	// Uncomment and ensure the required libraries are installed if needed in the future
 	// Websocket returns the WebSocket instance.
-	Websocket() *zmq4.Socket
+	//Websocket() *zmq4.Socket
+
 	// WebClient returns the HTTP client instance.
 	WebClient() *http.Client
 	// DBusClient returns the DBus connection instance.
@@ -128,10 +131,13 @@ func (n *NotifierImpl) httpNotify(entry LogzEntry) error {
 
 // wsNotify sends a WebSocket notification.
 func (n *NotifierImpl) wsNotify(entry LogzEntry) error {
-	message := n.AuthToken + "|" + entry.GetMessage()
-	if _, err := n.Websocket().Send(message, 0); err != nil {
-		return fmt.Errorf("WebSocket error: %w", err)
-	}
+	_ = n.AuthToken + "|" + entry.GetMessage()
+	// message := n.AuthToken + "|" + entry.GetMessage()
+	// Temporarily disabled due to external dependency on zmq4
+	// Uncomment and ensure the required libraries are installed if needed in the future
+	//if _, err := n.Websocket().Send(message, 0); err != nil {
+	//	return fmt.Errorf("WebSocket error: %w", err)
+	//}
 	return nil
 }
 
@@ -157,8 +163,10 @@ func (n *NotifierImpl) Enabled() bool { return n.EnabledFlag }
 // WebServer returns the HTTP server instance.
 func (n *NotifierImpl) WebServer() *http.Server { return n.NotifierManager.WebServer() }
 
+// Temporarily disabled due to external dependency on zmq4
+// Uncomment and ensure the required libraries are installed if needed in the future
 // Websocket returns the WebSocket instance.
-func (n *NotifierImpl) Websocket() *zmq4.Socket { return n.NotifierManager.Websocket() }
+//func (n *NotifierImpl) Websocket() *zmq4.Socket { return n.NotifierManager.Websocket() }
 
 // WebClient returns the HTTP client instance.
 func (n *NotifierImpl) WebClient() *http.Client { return n.NotifierManager.WebClient() }
@@ -232,15 +240,18 @@ func NewZMQNotifier(endpoint string) *ZMQNotifier {
 	}
 }
 
+// Temporarily disabled due to external dependency on zmq4
+// Uncomment and ensure the required libraries are installed if needed in the future
 // Notify sends a WebSocket notification.
 func (n *ZMQNotifier) Notify(entry LogzEntry) error {
 	if !n.EnabledFlag {
 		return nil
 	}
-	message := n.AuthToken + "|" + entry.GetMessage()
-	if _, err := n.Websocket().Send(message, 0); err != nil {
-		return fmt.Errorf("ZMQNotifier error: %w", err)
-	}
+	_ = n.AuthToken + "|" + entry.GetMessage()
+	//message := n.AuthToken + "|" + entry.GetMessage()
+	//if _, err := n.Websocket().Send(message, 0); err != nil {
+	//	return fmt.Errorf("ZMQNotifier error: %w", err)
+	//}
 	return nil
 }
 

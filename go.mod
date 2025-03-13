@@ -7,7 +7,11 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/pebbe/zmq4 v1.2.11
+
+	// Temporarily disabled due to external dependency on zmq4
+	// Uncomment and ensure the required libraries are installed if needed in the future
+	// github.com/pebbe/zmq4 v1.2.11
+
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	golang.org/x/text v0.23.0
