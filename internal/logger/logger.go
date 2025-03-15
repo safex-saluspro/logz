@@ -74,11 +74,11 @@ func NewLogger(config Config) *LogzCoreImpl {
 
 	// Initialize the formatter (JSON or text)
 	var formatter LogFormatter
-	//if config.Format() == "json" {
-	//	formatter = &JSONFormatter{}
-	//} else {
-	formatter = &TextFormatter{}
-	//}
+	if config.Format() == "json" {
+		formatter = &JSONFormatter{}
+	} else {
+		formatter = &TextFormatter{}
+	}
 	writer := NewDefaultWriter(out, formatter)
 
 	// Read the mode from Config
