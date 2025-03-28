@@ -2,7 +2,7 @@
 
 set -e
 
-_OWNER="faelmori"
+_OWNER="safex-saluspro"
 _APP_NAME="logz"
 _PROJECT_NAME="logz"
 _LICENSE="Apache License 2.0"
