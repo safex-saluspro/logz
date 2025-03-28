@@ -1,4 +1,4 @@
-module github.com/faelmori/logz
+module github.com/safex-saluspro/logz
 
 go 1.24.0
 
