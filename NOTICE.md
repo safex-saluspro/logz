@@ -4,7 +4,7 @@ This software is licensed under the MIT License. Below are additional notes on u
 
 ## Attribution Requirement (Optional):
 - When distributing or using this software, please provide credit to the original author(s) in one or more of the following ways:
-    - Retain the copyright notice: `Copyright (c) 2025 Rafael Mori`.
+    - Retain the copyright notice: `Copyright (c) 2025 Safex Cloud`.
     - Include a link to the original project repository or website.
 
 ## Acknowledgment:
